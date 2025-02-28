@@ -6,13 +6,13 @@ let exportText = document.getElementById('exportText');
 
 // Mapa de símbolos para cada punto
 const stitchSymbols = {
-    cadeneta: '⛓️',
-    punt_baix: '✖️',
-    punt_pla: '⬜',
-    punt_mitja: '⬆️',
+    cadeneta: '#',
+    punt_baix: '•',
+    punt_pla: '-',
+    punt_mitja: '●',
     punt_alt: '↑',
     punt_doble_alt: '⇑',
-    picot: '⚫'
+    picot: '¤'
 };
 
 // Inicializar cuadrícula
