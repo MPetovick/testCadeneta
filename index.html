@@ -1,19 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Crochet Simple</title>
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <title>Crochet Grid</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app">
-    <h1>Crochet Simple</h1>
-    <div class="grid" id="grid"></div>
-    <div class="controls">
-      <button id="exportBtn">Exportar</button>
-    </div>
-  </div>
-  <script src="script.js"></script>
+    <h2>Puntos de Crochet</h2>
+    <select id="stitch">
+        <option value="cadeneta">Cadeneta</option>
+        <option value="punt_baix">Punt Baix</option>
+        <option value="punt_pla">Punt Pla</option>
+        <option value="punt_mitja">Punt Mitja</option>
+        <option value="punt_alt">Punt Alt</option>
+        <option value="punt_doble_alt">Punt Doble Alt</option>
+        <option value="picot">Picot</option>
+    </select>
+    <div id="grid" class="grid"></div>
+
+    <script src="script.js"></script>
 </body>
 </html>
