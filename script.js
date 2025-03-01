@@ -12,10 +12,12 @@ const stitchColors = {
 const RING_SPACING = 50;
 let canvasSize = Math.min(window.innerWidth * 0.8, 600); // Tamaño dinámico
 let scale = 1;
+let targetScale = 1;
 let offsetX = 0;
 let offsetY = 0;
 let isDragging = false;
 let dragStartX, dragStartY;
+let animationFrameId;
 
 // Elementos del DOM
 const grid = document.getElementById('grid');
@@ -72,7 +74,7 @@ function render() {
         ctx.stroke();
     }
 
-    // Anillos
+    // Anillos dinámicos
     ctx.strokeStyle = '#c0c0c0';
     for (let r = 1; r <= maxRings; r++) {
         ctx.beginPath();
@@ -122,9 +124,7 @@ function handlePointPlacement(event, clientX, clientY) {
     });
 
     if (existingPointIndex >= 0) {
-        if (confirm('¿Eliminar este punto?')) {
-            matrix.splice(existingPointIndex, 1);
-        }
+        matrix.splice(existingPointIndex, 1); // Eliminar sin confirmación
     } else {
         matrix.push({ ring, angle: snapAngle, stitch: selectedStitch.value });
     }
@@ -149,6 +149,19 @@ function updateZoomLabel() {
     zoomLevel.textContent = `Zoom: ${Math.round(scale * 100)}%`;
 }
 
+// Animación de zoom suave
+function animateZoom() {
+    const diff = targetScale - scale;
+    if (Math.abs(diff) > 0.01) {
+        scale += diff * 0.1;
+        render();
+        animationFrameId = requestAnimationFrame(animateZoom);
+    } else {
+        scale = targetScale;
+        render();
+    }
+}
+
 // Eventos para escritorio
 guideLinesInput.oninput = () => {
     const val = parseInt(guideLinesInput.value);
@@ -157,13 +170,15 @@ guideLinesInput.oninput = () => {
 };
 
 zoomInBtn.onclick = () => {
-    scale *= 1.2;
-    render();
+    targetScale *= 1.2;
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    animateZoom();
 };
 
 zoomOutBtn.onclick = () => {
-    scale = Math.max(0.5, scale / 1.2);
-    render();
+    targetScale = Math.max(0.5, targetScale / 1.2);
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    animateZoom();
 };
 
 resetBtn.onclick = () => {
@@ -171,6 +186,7 @@ resetBtn.onclick = () => {
     offsetX = 0;
     offsetY = 0;
     scale = 1;
+    targetScale = 1;
     localStorage.setItem('crochetPattern', JSON.stringify(matrix));
     render();
 };
@@ -188,7 +204,7 @@ canvas.onmousemove = (e) => {
     if (isDragging) {
         offsetX = e.clientX - dragStartX;
         offsetY = e.clientY - dragStartY;
-        requestAnimationFrame(render);
+        render();
     }
 };
 canvas.onmouseup = () => isDragging = false;
@@ -212,7 +228,7 @@ canvas.addEventListener('touchmove', (e) => {
     if (e.touches.length === 2 && isDragging) {
         offsetX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - dragStartX;
         offsetY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - dragStartY;
-        requestAnimationFrame(render);
+        render();
     }
 });
 
