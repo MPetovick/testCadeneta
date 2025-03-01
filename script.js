@@ -24,9 +24,7 @@ class CrochetEditor {
         };
 
         this.state = {
-            rings: [ // Cada anillo tiene un número variable de puntos
-                { segments: 8, points: Array(8).fill('cadeneta') } // Anillo inicial con 8 puntos
-            ],
+            rings: [{ segments: 8, points: Array(8).fill('cadeneta') }],
             history: [[]],
             historyIndex: 0,
             scale: 1,
@@ -34,7 +32,7 @@ class CrochetEditor {
             offset: { x: 0, y: 0 },
             targetOffset: { x: 0, y: 0 },
             selectedStitch: 'punt_baix',
-            guideLines: 8, // Divisiones iniciales
+            guideLines: 8,
             ringSpacing: 50,
             isDragging: false,
             lastPos: { x: 0, y: 0 },
@@ -236,16 +234,16 @@ class CrochetEditor {
         const mouseY = (e.clientY - rect.top - this.state.offset.y - this.canvas.height / 2) / this.state.scale;
 
         const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
-        const ring = Math.round(distance / this.state.ringSpacing);
-        const angle = Math.atan2(mouseY, mouseX) + Math.PI * 2;
-
+        const ring = Math.round(distance / this.state.ringSpacing) - 1;
         if (ring >= 0 && ring < this.state.rings.length) {
             const segments = this.state.rings[ring].segments;
+            const angleStep = Math.PI * 2 / segments;
+            const angle = Math.atan2(mouseY, mouseX) + Math.PI * 2;
             const segment = Math.round((angle / (Math.PI * 2)) * segments) % segments;
 
-            if (e.shiftKey) { // Shift + clic: Aumentar puntos en el siguiente anillo
+            if (e.shiftKey) { // Shift + clic: Aumentar puntos
                 this.increasePoints(ring, segment);
-            } else if (e.ctrlKey) { // Ctrl + clic: Disminuir puntos en el anillo actual
+            } else if (e.ctrlKey) { // Ctrl + clic: Disminuir puntos
                 this.decreasePoints(ring, segment);
             } else { // Clic normal: Cambiar tipo de puntada
                 this.state.rings[ring].points[segment] = this.state.selectedStitch;
@@ -258,23 +256,20 @@ class CrochetEditor {
     increasePoints(ringIndex, segmentIndex) {
         const nextRingIndex = ringIndex + 1;
         if (nextRingIndex >= this.state.rings.length) {
-            // Agregar un nuevo anillo si no existe
             const prevSegments = this.state.rings[ringIndex].segments;
             this.state.rings.push({ segments: prevSegments, points: Array(prevSegments).fill('punt_baix') });
         }
 
-        // Aumentar el número de segmentos en el siguiente anillo
         const nextRing = this.state.rings[nextRingIndex];
         nextRing.segments += 1;
-        nextRing.points.splice(segmentIndex + 1, 0, this.state.selectedStitch); // Insertar nuevo punto después del seleccionado
+        nextRing.points.splice(segmentIndex + 1, 0, this.state.selectedStitch);
     }
 
     decreasePoints(ringIndex, segmentIndex) {
         if (ringIndex > 0 && this.state.rings[ringIndex].segments > this.state.guideLines) {
-            // Reducir segmentos en el anillo actual si no es el inicial y tiene más que el mínimo
             const currentRing = this.state.rings[ringIndex];
             currentRing.segments -= 1;
-            currentRing.points.splice(segmentIndex, 1); // Eliminar el punto seleccionado
+            currentRing.points.splice(segmentIndex, 1);
         }
     }
 
@@ -282,7 +277,6 @@ class CrochetEditor {
         requestAnimationFrame(() => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-            // Animación suave
             this.state.offset.x += (this.state.targetOffset.x - this.state.offset.x) * 0.1;
             this.state.offset.y += (this.state.targetOffset.y - this.state.offset.y) * 0.1;
             this.state.scale += (this.state.targetScale - this.state.scale) * 0.1;
@@ -290,12 +284,10 @@ class CrochetEditor {
             const centerX = this.canvas.width / 2;
             const centerY = this.canvas.height / 2;
 
-            // Aplicar transformaciones
             this.ctx.save();
             this.ctx.translate(centerX + this.state.offset.x, centerY + this.state.offset.y);
             this.ctx.scale(this.state.scale, this.state.scale);
 
-            // Dibujar anillos y ejes dinámicos
             this.ctx.strokeStyle = '#ddd';
             this.ctx.lineWidth = 1 / this.state.scale;
             for (let r = 0; r < this.state.rings.length; r++) {
@@ -317,7 +309,6 @@ class CrochetEditor {
                 this.ctx.stroke();
             }
 
-            // Dibujar puntadas
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.font = `${20 / this.state.scale}px Arial`;
@@ -334,7 +325,6 @@ class CrochetEditor {
                 });
             });
 
-            // Retroalimentación visual del cursor
             if (mouseX !== null && mouseY !== null) {
                 const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
                 const ring = Math.round(distance / this.state.ringSpacing) - 1;
@@ -453,7 +443,7 @@ class CrochetEditor {
         const existingDeleteBtn = controls.querySelector('.delete-btn');
         if (existingDeleteBtn) existingDeleteBtn.remove();
 
-        select.innerHTML = '<option value="">Cargar proyecto...</option>' + 
+        select.innerHTML = '<option value="">Cargar...</option>' + 
             Object.keys(projects).map(name => `<option value="${name}">${name}</option>`).join('');
 
         select.addEventListener('change', () => {
@@ -559,8 +549,8 @@ class CrochetEditor {
             tooltip.innerHTML = content;
 
             const rect = e.target.getBoundingClientRect();
-            tooltip.style.left = `${rect.right + 10}px`;
-            tooltip.style.top = `${rect.top - 10}px`;
+            tooltip.style.left = `${rect.right + 5}px`;
+            tooltip.style.top = `${rect.top - 5}px`;
             tooltip.classList.remove('hidden');
         } else {
             tooltip.classList.add('hidden');
