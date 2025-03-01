@@ -16,7 +16,6 @@ let offsetX = 0;
 let offsetY = 0;
 let isDragging = false;
 let dragStartX, dragStartY;
-let pinchStartDist = 0;
 
 // Elementos del DOM
 const grid = document.getElementById('grid');
@@ -94,10 +93,10 @@ function render() {
     updateZoomLabel();
 }
 
-function handleClick(event) {
+function handlePointPlacement(event, clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / scale - offsetX / scale;
-    const y = (event.clientY - rect.top) / scale - offsetY / scale;
+    const x = (clientX - rect.left) / scale - offsetX / scale;
+    const y = (clientY - rect.top) / scale - offsetY / scale;
     const guideLines = parseInt(guideLinesInput.value) || 8;
 
     const dx = x - canvasSize / 2;
@@ -178,7 +177,8 @@ resetBtn.onclick = () => {
 
 exportBtn.onclick = exportSequence;
 
-canvas.onclick = handleClick;
+// Eventos de mouse
+canvas.onclick = (e) => handlePointPlacement(e, e.clientX, e.clientY);
 canvas.onmousedown = (e) => {
     isDragging = true;
     dragStartX = e.clientX - offsetX;
@@ -194,74 +194,37 @@ canvas.onmousemove = (e) => {
 canvas.onmouseup = () => isDragging = false;
 canvas.onmouseleave = () => isDragging = false;
 
-// Eventos para teclado
-document.addEventListener('keydown', (e) => {
-    if (e.key === '+') zoomInBtn.click();
-    if (e.key === '-') zoomOutBtn.click();
-});
-
-// Eventos táctiles para smartphones
+// Eventos táctiles
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     if (e.touches.length === 1) {
-        isDragging = true;
-        dragStartX = e.touches[0].clientX - offsetX;
-        dragStartY = e.touches[0].clientY - offsetY;
+        const touch = e.touches[0];
+        handlePointPlacement(e, touch.clientX, touch.clientY);
     } else if (e.touches.length === 2) {
-        isDragging = false;
-        pinchStartDist = getPinchDistance(e.touches);
+        isDragging = true;
+        dragStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - offsetX;
+        dragStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - offsetY;
     }
 });
 
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
-    if (e.touches.length === 1 && isDragging) {
-        offsetX = e.touches[0].clientX - dragStartX;
-        offsetY = e.touches[0].clientY - dragStartY;
+    if (e.touches.length === 2 && isDragging) {
+        offsetX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - dragStartX;
+        offsetY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - dragStartY;
         requestAnimationFrame(render);
-    } else if (e.touches.length === 2) {
-        const pinchDist = getPinchDistance(e.touches);
-        if (pinchStartDist) {
-            const pinchScale = pinchDist / pinchStartDist;
-            scale = Math.max(0.5, scale * pinchScale);
-            pinchStartDist = pinchDist;
-            requestAnimationFrame(render);
-        }
     }
 });
 
 canvas.addEventListener('touchend', (e) => {
     e.preventDefault();
     isDragging = false;
-    pinchStartDist = 0;
 });
 
-// Función auxiliar para calcular distancia entre dos toques
-function getPinchDistance(touches) {
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-}
-
-// Doble toque para zoom
-canvas.addEventListener('dblclick', () => {
-    scale *= 1.5;
-    render();
-});
-canvas.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-        const touch = e.touches[0];
-        let touchCount = 0;
-        const checkDoubleTap = setInterval(() => {
-            touchCount++;
-            if (touchCount > 1) {
-                scale *= 1.5;
-                render();
-                clearInterval(checkDoubleTap);
-            }
-            if (touchCount > 10) clearInterval(checkDoubleTap); // Timeout de 1s aprox
-        }, 100);
-    }
+// Eventos para teclado
+document.addEventListener('keydown', (e) => {
+    if (e.key === '+') zoomInBtn.click();
+    if (e.key === '-') zoomOutBtn.click();
 });
 
 // Inicialización
