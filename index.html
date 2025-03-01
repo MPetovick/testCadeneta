@@ -25,11 +25,14 @@
             <div class="tool-section">
                 <h3>Herramientas</h3>
                 <div class="tool-grid">
-                    <button class="tool-btn" id="newBtn" title="Nuevo proyecto">
+                    <button class="tool-btn" id="newBtn" title="Nuevo proyecto (N)">
                         <i class="fas fa-file"></i>
                     </button>
-                    <button class="tool-btn" id="saveBtn" title="Guardar proyecto">
+                    <button class="tool-btn" id="saveBtn" title="Guardar proyecto (Ctrl+S)">
                         <i class="fas fa-save"></i>
+                    </button>
+                    <button class="tool-btn" id="saveAsBtn" title="Guardar como...">
+                        <i class="fas fa-save"></i> +
                     </button>
                     <button class="tool-btn" id="undoBtn" title="Deshacer (Ctrl+Z)">
                         <i class="fas fa-undo"></i>
@@ -38,6 +41,9 @@
                         <i class="fas fa-redo"></i>
                     </button>
                 </div>
+                <select id="loadProjects" title="Cargar proyecto guardado">
+                    <option value="">Cargar proyecto...</option>
+                </select>
             </div>
 
             <div class="tool-section">
@@ -66,8 +72,8 @@
             <div id="grid" class="grid-view">
                 <canvas id="patternCanvas"></canvas>
                 <div class="zoom-controls">
-                    <button id="zoomIn"><i class="fas fa-search-plus"></i></button>
-                    <button id="zoomOut"><i class="fas fa-search-minus"></i></button>
+                    <button id="zoomIn" title="Zoom In (+)"><i class="fas fa-search-plus"></i></button>
+                    <button id="zoomOut" title="Zoom Out (-)"><i class="fas fa-search-minus"></i></button>
                     <button id="resetView"><i class="fas fa-expand-arrows-alt"></i></button>
                 </div>
             </div>
@@ -78,7 +84,7 @@
                     <button class="export-btn" id="exportPng"><i class="fas fa-image"></i> PNG</button>
                     <button class="export-btn" id="exportPdf"><i class="fas fa-file-pdf"></i> PDF</button>
                 </div>
-                <textarea id="exportText" placeholder="Secuencia generada..."></textarea>
+                <textarea id="exportText" placeholder="Vista previa del patrón..." readonly></textarea>
             </div>
         </div>
     </main>
@@ -86,15 +92,21 @@
     <!-- Modal de ayuda -->
     <div id="helpModal" class="modal hidden">
         <div class="modal-content">
-            <span class="close-modal">&times;</span>
+            <span class="close-modal">×</span>
             <h2>Guía de Símbolos</h2>
             <div id="stitchGuide"></div>
             <h3>Instrucciones Rápidas</h3>
             <ul class="help-list">
                 <li><kbd>Clic izquierdo</kbd>: Añadir/eliminar punto</li>
+                <li><kbd>Shift + Clic</kbd>: Cambiar tipo de punto</li>
                 <li><kbd>Rueda del ratón</kbd>: Zoom</li>
                 <li><kbd>Arrastrar</kbd>: Mover vista</li>
                 <li><kbd>Doble clic</kbd>: Restablecer vista</li>
+                <li><kbd>Ctrl+Z</kbd>: Deshacer</li>
+                <li><kbd>Ctrl+Y</kbd>: Rehacer</li>
+                <li><kbd>Ctrl+S</kbd>: Guardar</li>
+                <li><kbd>N</kbd>: Nuevo proyecto</li>
+                <li><kbd>+/-</kbd>: Zoom</li>
             </ul>
         </div>
     </div>
