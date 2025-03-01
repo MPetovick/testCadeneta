@@ -24,7 +24,7 @@ class CrochetEditor {
         };
 
         this.state = {
-            rings: [{ segments: 8, points: Array(8).fill('cadeneta') }],
+            rings: [{ segments: 8, points: [] }], // Anillo inicial vacío
             history: [[]],
             historyIndex: 0,
             scale: 1,
@@ -87,7 +87,7 @@ class CrochetEditor {
         guideLines.addEventListener('input', () => {
             this.state.guideLines = parseInt(guideLines.value);
             this.state.rings[0].segments = this.state.guideLines;
-            this.state.rings[0].points = Array(this.state.guideLines).fill('cadeneta');
+            this.state.rings[0].points = []; // Mantener vacío
             document.getElementById('guideLinesValue').textContent = this.state.guideLines;
             this.render();
         });
@@ -243,10 +243,22 @@ class CrochetEditor {
 
             if (e.shiftKey) { // Shift + clic: Aumentar puntos
                 this.increasePoints(ring, segment);
+                console.log(`Aumentado punto en anillo ${ring + 1}, segmento ${segment}`);
             } else if (e.ctrlKey) { // Ctrl + clic: Disminuir puntos
-                this.decreasePoints(ring, segment);
-            } else { // Clic normal: Cambiar tipo de puntada
-                this.state.rings[ring].points[segment] = this.state.selectedStitch;
+                const decreased = this.decreasePoints(ring, segment);
+                if (decreased) {
+                    console.log(`Disminuido punto en anillo ${ring + 1}, segmento ${segment}`);
+                } else {
+                    console.log(`No se puede disminuir: anillo inicial o al mínimo (${this.state.guideLines} segmentos)`);
+                }
+            } else { // Clic normal: Agregar o cambiar tipo de puntada
+                if (this.state.rings[ring].points[segment]) {
+                    this.state.rings[ring].points[segment] = this.state.selectedStitch;
+                    console.log(`Cambiado tipo de puntada en anillo ${ring + 1}, segmento ${segment}`);
+                } else {
+                    this.state.rings[ring].points[segment] = this.state.selectedStitch;
+                    console.log(`Añadido punto en anillo ${ring + 1}, segmento ${segment}`);
+                }
             }
             this.saveState();
             this.render();
@@ -257,12 +269,12 @@ class CrochetEditor {
         const nextRingIndex = ringIndex + 1;
         if (nextRingIndex >= this.state.rings.length) {
             const prevSegments = this.state.rings[ringIndex].segments;
-            this.state.rings.push({ segments: prevSegments, points: Array(prevSegments).fill('punt_baix') });
+            this.state.rings.push({ segments: prevSegments, points: [] }); // Anillo nuevo vacío
         }
 
         const nextRing = this.state.rings[nextRingIndex];
         nextRing.segments += 1;
-        nextRing.points.splice(segmentIndex + 1, 0, this.state.selectedStitch);
+        nextRing.points.splice(segmentIndex + 1, 0, null); // Insertar posición vacía
     }
 
     decreasePoints(ringIndex, segmentIndex) {
@@ -270,7 +282,9 @@ class CrochetEditor {
             const currentRing = this.state.rings[ringIndex];
             currentRing.segments -= 1;
             currentRing.points.splice(segmentIndex, 1);
+            return true;
         }
+        return false;
     }
 
     render(mouseX = null, mouseY = null) {
@@ -307,6 +321,19 @@ class CrochetEditor {
                     this.ctx.lineTo(cosAngle * this.state.rings.length * this.state.ringSpacing, sinAngle * this.state.rings.length * this.state.ringSpacing);
                 }
                 this.ctx.stroke();
+
+                // Dibujar puntos negros en intersecciones disponibles
+                this.ctx.fillStyle = '#000';
+                for (let i = 0; i < segments; i++) {
+                    const angle = i * angleStep;
+                    const x = Math.cos(angle) * (r + 1) * this.state.ringSpacing;
+                    const y = Math.sin(angle) * (r + 1) * this.state.ringSpacing;
+                    if (!this.state.rings[r].points[i]) { // Solo si no hay punto
+                        this.ctx.beginPath();
+                        this.ctx.arc(x, y, 2 / this.state.scale, 0, Math.PI * 2);
+                        this.ctx.fill();
+                    }
+                }
             }
 
             this.ctx.textAlign = 'center';
@@ -316,12 +343,14 @@ class CrochetEditor {
                 const segments = ring.segments;
                 const angleStep = Math.PI * 2 / segments;
                 ring.points.forEach((type, segmentIndex) => {
-                    const angle = segmentIndex * angleStep;
-                    const x = Math.cos(angle) * (ringIndex + 1) * this.state.ringSpacing;
-                    const y = Math.sin(angle) * (ringIndex + 1) * this.state.ringSpacing;
-                    const stitch = this.STITCH_TYPES[type];
-                    this.ctx.fillStyle = stitch.color;
-                    this.ctx.fillText(stitch.symbol, x, y);
+                    if (type) { // Solo dibujar si hay un punto definido
+                        const angle = segmentIndex * angleStep;
+                        const x = Math.cos(angle) * (ringIndex + 1) * this.state.ringSpacing;
+                        const y = Math.sin(angle) * (ringIndex + 1) * this.state.ringSpacing;
+                        const stitch = this.STITCH_TYPES[type];
+                        this.ctx.fillStyle = stitch.color;
+                        this.ctx.fillText(stitch.symbol, x, y);
+                    }
                 });
             });
 
@@ -403,7 +432,7 @@ class CrochetEditor {
     }
 
     newProject() {
-        this.state.rings = [{ segments: this.state.guideLines, points: Array(this.state.guideLines).fill('cadeneta') }];
+        this.state.rings = [{ segments: this.state.guideLines, points: [] }]; // Anillo inicial vacío
         this.state.history = [JSON.parse(JSON.stringify(this.state.rings))];
         this.state.historyIndex = 0;
         this.resetView();
@@ -438,30 +467,16 @@ class CrochetEditor {
     loadProjects() {
         const projects = JSON.parse(localStorage.getItem('crochetProjects') || '{}');
         const select = document.getElementById('loadProjects');
-        const controls = document.querySelector('.project-controls');
         
-        const existingDeleteBtn = controls.querySelector('.delete-btn');
-        if (existingDeleteBtn) existingDeleteBtn.remove();
-
         select.innerHTML = '<option value="">Cargar...</option>' + 
             Object.keys(projects).map(name => `<option value="${name}">${name}</option>`).join('');
 
         select.addEventListener('change', () => {
-            const deleteBtn = controls.querySelector('.delete-btn');
-            if (deleteBtn) deleteBtn.remove();
-
             if (select.value) {
                 this.state.rings = JSON.parse(JSON.stringify(projects[select.value]));
                 this.state.history = [JSON.parse(JSON.stringify(projects[select.value]))];
                 this.state.historyIndex = 0;
                 this.render();
-
-                const btn = document.createElement('button');
-                btn.className = 'delete-btn';
-                btn.innerHTML = '<i class="fas fa-trash"></i>';
-                btn.title = 'Eliminar proyecto';
-                btn.addEventListener('click', () => this.deleteProject(select.value));
-                controls.insertBefore(btn, select);
             }
         });
     }
@@ -481,8 +496,8 @@ class CrochetEditor {
         const text = this.state.rings
             .map((ring, ringIndex) => 
                 ring.points.map((type, segmentIndex) => 
-                    `Anillo ${ringIndex + 1}, Segmento ${segmentIndex}: ${this.STITCH_TYPES[type].desc}`
-                ).join('\n')
+                    type ? `Anillo ${ringIndex + 1}, Segmento ${segmentIndex}: ${this.STITCH_TYPES[type].desc}` : null
+                ).filter(Boolean).join('\n')
             )
             .join('\n');
         document.getElementById('exportText').value = text || 'Patrón vacío';
@@ -528,12 +543,14 @@ class CrochetEditor {
             const segments = ring.segments;
             const angleStep = Math.PI * 2 / segments;
             ring.points.forEach((type, segmentIndex) => {
-                const angle = segmentIndex * angleStep;
-                const x = centerX + Math.cos(angle) * (ringIndex + 1) * 10;
-                const y = centerY + Math.sin(angle) * (ringIndex + 1) * 10;
-                const stitch = this.STITCH_TYPES[type];
-                doc.setTextColor(stitch.color);
-                doc.text(stitch.symbol, x, y, { align: 'center', baseline: 'middle' });
+                if (type) {
+                    const angle = segmentIndex * angleStep;
+                    const x = centerX + Math.cos(angle) * (ringIndex + 1) * 10;
+                    const y = centerY + Math.sin(angle) * (ringIndex + 1) * 10;
+                    const stitch = this.STITCH_TYPES[type];
+                    doc.setTextColor(stitch.color);
+                    doc.text(stitch.symbol, x, y, { align: 'center', baseline: 'middle' });
+                }
             });
         });
 
