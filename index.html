@@ -10,9 +10,9 @@
     <div class="container">
         <h1>Patrones de Crochet Radial</h1>
         <div class="controls">
-            <label for="guideLines">Líneas guía: </label>
-            <input type="number" id="guideLines" min="4" max="24" value="8" step="1">
-            <label for="stitch">Puntada: </label>
+            <label for="guideLines">Líneas guía:</label>
+            <input type="number" id="guideLines" min="4" max="24" value="8">
+            <label for="stitch">Puntada:</label>
             <select id="stitch">
                 <option value="cadeneta">Cadeneta (#)</option>
                 <option value="punt_baix">Punto Bajo (•)</option>
@@ -22,14 +22,12 @@
                 <option value="punt_doble_alt">Punto Doble Alto (⇑)</option>
                 <option value="picot">Picot (¤)</option>
             </select>
+            <button id="zoomIn">+</button>
+            <button id="zoomOut">-</button>
             <button id="exportBtn">Exportar</button>
-            <div class="zoom-controls">
-                <button id="zoomIn">+</button>
-                <button id="zoomOut">-</button>
-            </div>
         </div>
         <div id="grid"></div>
-        <textarea id="exportText" placeholder="Secuencia exportada aparecerá aquí..." readonly></textarea>
+        <textarea id="exportText" placeholder="Secuencia aquí..." readonly></textarea>
     </div>
     <script src="script.js"></script>
 </body>
