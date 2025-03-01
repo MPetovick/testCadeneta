@@ -24,7 +24,7 @@ class CrochetEditor {
         };
 
         this.state = {
-            rings: [{ segments: 8, points: Array(8).fill('cadeneta') }],
+            rings: [{ segments: 8, points: [] }],
             history: [[]],
             historyIndex: 0,
             scale: 1,
@@ -257,7 +257,7 @@ class CrochetEditor {
         const nextRingIndex = ringIndex + 1;
         if (nextRingIndex >= this.state.rings.length) {
             const prevSegments = this.state.rings[ringIndex].segments;
-            this.state.rings.push({ segments: prevSegments, points: Array(prevSegments).fill('punt_baix') });
+            this.state.rings.push({ segments: prevSegments, points: [] });
         }
 
         const nextRing = this.state.rings[nextRingIndex];
@@ -307,6 +307,19 @@ class CrochetEditor {
                     this.ctx.lineTo(cosAngle * this.state.rings.length * this.state.ringSpacing, sinAngle * this.state.rings.length * this.state.ringSpacing);
                 }
                 this.ctx.stroke();
+
+                // Dibujar círculos negros en intersecciones disponibles
+                this.ctx.fillStyle = '#000';
+                for (let i = 0; i < segments; i++) {
+                    const angle = i * angleStep;
+                    const x = Math.cos(angle) * (r + 1) * this.state.ringSpacing;
+                    const y = Math.sin(angle) * (r + 1) * this.state.ringSpacing;
+                    if (!this.state.rings[r].points[i]) { // Solo si no hay punto
+                        this.ctx.beginPath();
+                        this.ctx.arc(x, y, 2 / this.state.scale, 0, Math.PI * 2);
+                        this.ctx.fill();
+                    }
+                }
             }
 
             this.ctx.textAlign = 'center';
