@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Crea patrones de crochet radiales fácilmente">
     <title>Patrones de Crochet Radial - Premium</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
+    <header>
         <h1>Patrones de Crochet Radial</h1>
-        <div class="controls">
+    </header>
+    <main>
+        <section class="controls">
             <label for="guideLines">Líneas guía:</label>
             <input type="number" id="guideLines" min="4" max="24" value="8">
             <label for="stitch">Puntada:</label>
@@ -24,17 +27,20 @@
             </select>
             <button id="resetBtn">Reiniciar</button>
             <button id="exportBtn">Exportar</button>
-        </div>
-        <div class="main-content">
+        </section>
+        <section class="main-content">
             <div class="zoom-bar">
-                <button id="zoomIn">+</button>
+                <button id="zoomIn" aria-label="Aumentar zoom">+</button>
                 <span id="zoomLevel">Zoom: 100%</span>
-                <button id="zoomOut">-</button>
+                <button id="zoomOut" aria-label="Disminuir zoom">-</button>
             </div>
             <div id="grid"></div>
-        </div>
-        <textarea id="exportText" placeholder="Secuencia aquí..." readonly></textarea>
-    </div>
+        </section>
+        <textarea id="exportText" placeholder="Secuencia aquí..." readonly aria-label="Secuencia de patrones"></textarea>
+    </main>
+    <footer>
+        <p>© 2023 Patrones de Crochet</p>
+    </footer>
     <script src="script.js"></script>
 </body>
 </html>
