@@ -1,9 +1,10 @@
-let matrix = [];
-let grid = document.getElementById('grid');
-let selectedStitch = document.getElementById('stitch');
-let exportBtn = document.getElementById('exportBtn');
-let exportText = document.getElementById('exportText');
+const CANVAS_SIZE = 400;
+const CENTER = CANVAS_SIZE / 2;
+const RING_SPACING = 50;
+const GUIDE_ANGLES = 8;
+const MAX_RINGS = Math.ceil(CENTER / RING_SPACING);
 
+let matrix = [];
 const stitchSymbols = {
     cadeneta: '#',
     punt_baix: '•',
@@ -14,96 +15,113 @@ const stitchSymbols = {
     picot: '¤'
 };
 
-function renderGrid() {
-    grid.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 400;
-    grid.appendChild(canvas);
+// Elementos del DOM
+const grid = document.getElementById('grid');
+const selectedStitch = document.getElementById('stitch');
+const exportBtn = document.getElementById('exportBtn');
+const exportText = document.getElementById('exportText');
 
-    const ctx = canvas.getContext('2d');
-    const centerX = 200;
-    const centerY = 200;
-    const ringSpacing = 50;
-    const maxRings = Math.ceil(200 / ringSpacing);
+// Configuración de canvas
+const backgroundCanvas = document.createElement('canvas');
+const pointsCanvas = document.createElement('canvas');
 
+function initializeCanvases() {
+    [backgroundCanvas, pointsCanvas].forEach(canvas => {
+        canvas.width = CANVAS_SIZE;
+        canvas.height = CANVAS_SIZE;
+        canvas.style.position = 'absolute';
+    });
+    
+    grid.replaceChildren(backgroundCanvas, pointsCanvas);
+    drawBackground();
+    addEventListeners();
+}
+
+function drawBackground() {
+    const ctx = backgroundCanvas.getContext('2d');
+    
+    // Estilo base
     ctx.strokeStyle = '#ccc';
     ctx.lineWidth = 1;
-
-    // Línea vertical
+    
+    // Ejes principales
     ctx.beginPath();
-    ctx.moveTo(centerX, 0);
-    ctx.lineTo(centerX, 400);
+    ctx.moveTo(CENTER, 0);
+    ctx.lineTo(CENTER, CANVAS_SIZE);
+    ctx.moveTo(0, CENTER);
+    ctx.lineTo(CANVAS_SIZE, CENTER);
     ctx.stroke();
 
-    // Línea horizontal
-    ctx.beginPath();
-    ctx.moveTo(0, centerY);
-    ctx.lineTo(400, centerY);
-    ctx.stroke();
-
-    // Líneas diagonales (8 en total)
-    for (let i = 0; i < 8; i++) {
-        let angle = (i / 8) * 2 * Math.PI;
-        let x = centerX + 200 * Math.cos(angle);
-        let y = centerY + 200 * Math.sin(angle);
+    // Guías angulares
+    const angleStep = (2 * Math.PI) / GUIDE_ANGLES;
+    for (let i = 0; i < GUIDE_ANGLES; i++) {
+        const angle = i * angleStep;
+        const x = CENTER + CENTER * Math.cos(angle);
+        const y = CENTER + CENTER * Math.sin(angle);
         ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
+        ctx.moveTo(CENTER, CENTER);
         ctx.lineTo(x, y);
         ctx.stroke();
     }
 
-    // Anillos
+    // Anillos concéntricos
     ctx.strokeStyle = '#ddd';
-    for (let r = 1; r <= maxRings; r++) {
+    for (let ring = 1; ring <= MAX_RINGS; ring++) {
         ctx.beginPath();
-        ctx.arc(centerX, centerY, r * ringSpacing, 0, 2 * Math.PI);
+        ctx.arc(CENTER, CENTER, ring * RING_SPACING, 0, 2 * Math.PI);
         ctx.stroke();
     }
+}
 
-    // Puntos existentes
+function renderPoints() {
+    const ctx = pointsCanvas.getContext('2d');
+    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    
     ctx.fillStyle = '#000';
-    matrix.forEach(point => {
-        let x = centerX + (point.ring * ringSpacing) * Math.cos(point.angle);
-        let y = centerY + (point.ring * ringSpacing) * Math.sin(point.angle);
-        ctx.font = '20px Arial';
-        ctx.fillText(stitchSymbols[point.stitch], x - 10, y + 10);
-    });
+    ctx.font = '20px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
-    canvas.onclick = handleClick;
+    matrix.forEach(point => {
+        const radius = point.ring * RING_SPACING;
+        const x = CENTER + radius * Math.cos(point.angle);
+        const y = CENTER + radius * Math.sin(point.angle);
+        ctx.fillText(stitchSymbols[point.stitch], x, y);
+    });
 }
 
 function handleClick(event) {
-    const rect = grid.firstChild.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const centerX = 200;
-    const centerY = 200;
-    const ringSpacing = 50;
-
-    const dx = x - centerX;
-    const dy = y - centerY;
+    const rect = pointsCanvas.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+    
+    const dx = clickX - CENTER;
+    const dy = clickY - CENTER;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const ring = Math.round(distance / ringSpacing);
-
+    
+    const ring = Math.min(Math.round(distance / RING_SPACING), MAX_RINGS);
+    if (ring === 0) return;  // Ignorar clic en el centro
+    
     let angle = Math.atan2(dy, dx);
+    angle = Math.round(angle * GUIDE_ANGLES / (2 * Math.PI)) * (2 * Math.PI / GUIDE_ANGLES);
     if (angle < 0) angle += 2 * Math.PI;
 
-    const guideAngles = 8;
-    const snapAngle = Math.round((angle / (2 * Math.PI)) * guideAngles) * (2 * Math.PI / guideAngles);
-
-    matrix.push({ ring, angle: snapAngle, stitch: selectedStitch.value });
-    renderGrid();
+    matrix.push({ ring, angle, stitch: selectedStitch.value });
+    renderPoints();
 }
 
 function exportSequence() {
-    let sequence = '';
-    matrix.forEach(point => {
-        sequence += `${point.stitch} (anillo ${point.ring}, ángulo ${Math.round(point.angle * 180 / Math.PI)}°); `;
-    });
-    exportText.value = sequence || 'No hay puntos en la cuadrícula.';
+    exportText.value = matrix.map(point => 
+        `${point.stitch} (anillo ${point.ring}, ángulo ${Math.round(point.angle * 180 / Math.PI)}°)`
+    ).join(';\n') || 'No hay puntos en la cuadrícula.';
+    
     exportText.style.display = 'block';
 }
 
-exportBtn.onclick = exportSequence;
-renderGrid();
+function addEventListeners() {
+    pointsCanvas.addEventListener('click', handleClick);
+    exportBtn.addEventListener('click', exportSequence);
+}
+
+// Inicialización
+initializeCanvases();
