@@ -1,3 +1,4 @@
+
 class CrochetEditor {
     constructor() {
         this.canvas = document.getElementById('patternCanvas');
