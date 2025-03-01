@@ -73,59 +73,54 @@ button:active {
     transform: scale(0.95);
 }
 
-#zoomIn, #zoomOut {
+#undoBtn, #redoBtn {
     background-color: #7f8c8d;
-    width: 40px;
-    font-size: 1.2em;
 }
 
-#zoomIn:hover, #zoomOut:hover {
+#undoBtn:hover, #redoBtn:hover {
     background-color: #6c7a89;
 }
 
-#resetBtn {
-    background-color: #e74c3c;
-}
-
-#resetBtn:hover {
-    background-color: #c0392b;
-}
-
-#zoomLevel {
-    color: #34495e;
-    font-size: 1.1em;
-    font-weight: bold;
-}
-
-.main-content {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-    align-items: flex-start;
-    transition: transform 0.3s ease;
-}
-
-.zoom-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    align-items: center;
-    padding: 15px;
-    background-color: #ecf0f1;
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-#grid {
-    width: 100%;
-    max-width: 600px;
-    height: auto;
-    aspect-ratio: 1 / 1;
-    background-color: #fff;
+.grid-small {
+    width: 300px;
+    height: 300px;
+    margin: 0 auto;
     border: 2px solid #ecf0f1;
     border-radius: 8px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    cursor: move;
+    cursor: pointer;
+}
+
+.grid-fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #fff;
+    z-index: 1000;
+}
+
+#patternCanvas {
+    width: 100%;
+    height: 100%;
+}
+
+.fullscreen-toolbar {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background-color: #ecf0f1;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    display: flex;
+    gap: 10px;
+    z-index: 1001;
+}
+
+.hidden {
+    display: none;
 }
 
 textarea {
@@ -152,17 +147,8 @@ textarea:focus {
         flex-direction: column;
         gap: 10px;
     }
-    .main-content {
-        width: 100%;
+    .fullscreen-toolbar {
         flex-direction: column;
-        align-items: center;
-    }
-    .zoom-bar {
-        flex-direction: row;
-        gap: 10px;
-        padding: 10px;
-    }
-    #grid {
-        max-width: 100%;
+        align-items: flex-start;
     }
 }
