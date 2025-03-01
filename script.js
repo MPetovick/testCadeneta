@@ -2,13 +2,15 @@ class CrochetEditor {
     constructor() {
         this.canvas = document.getElementById('patternCanvas');
         this.ctx = this.canvas.getContext('2d');
+        this.staticCanvas = document.createElement('canvas'); // Canvas para cacheo
+        this.staticCtx = this.staticCanvas.getContext('2d');
         this.initConstants();
         this.resizeCanvas();
         this.initEventListeners();
         this.initStitchPalette();
+        this.loadProjects();
         this.loadFromLocalStorage();
         this.render();
-        this.initMobileFeatures();
         this.initExportButtons();
     }
 
@@ -24,56 +26,70 @@ class CrochetEditor {
         };
 
         this.state = {
-            matrix: [],           // Array de puntos: {ring, angle, type}
+            matrix: [],
             history: [[]],
             historyIndex: 0,
             scale: 1,
+            targetScale: 1,
             offset: { x: 0, y: 0 },
+            targetOffset: { x: 0, y: 0 },
             selectedStitch: 'punt_baix',
             guideLines: 8,
             ringSpacing: 50,
             isDragging: false,
             lastPos: { x: 0, y: 0 },
-            pinchDistance: null
+            pinchDistance: null,
+            needsStaticRedraw: true // Para controlar el cacheo
         };
+
+        this.debounceRender = this.debounce(this.render.bind(this), 16); // ~60fps
     }
 
     resizeCanvas() {
         this.canvas.width = this.canvas.parentElement.clientWidth;
         this.canvas.height = this.canvas.parentElement.clientHeight;
+        this.staticCanvas.width = this.canvas.width;
+        this.staticCanvas.height = this.canvas.height;
+        this.state.needsStaticRedraw = true;
         this.render();
-    }
-
-    initMobileFeatures() {
-        const toggleBtn = document.querySelector('.mobile-nav-toggle');
-        const toolbar = document.querySelector('.toolbar');
-        
-        toggleBtn.addEventListener('click', () => {
-            toolbar.classList.toggle('active');
-        });
-
-        window.addEventListener('resize', () => {
-            this.resizeCanvas();
-        });
     }
 
     initEventListeners() {
         // Eventos de ratón
-        this.canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+        this.canvas.addEventListener('click', this.handleCanvasClick.bind(this));
+        this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
         this.canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
         this.canvas.addEventListener('mousedown', this.startDrag.bind(this));
-        document.addEventListener('mousemove', this.handleDrag.bind(this));
+        document.addEventListener('mousemove', this.debounce(this.handleDrag.bind(this), 16));
         document.addEventListener('mouseup', this.endDrag.bind(this));
 
         // Eventos táctiles
         this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-        this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+        this.canvas.addEventListener('touchmove', this.debounce(this.handleTouchMove.bind(this), 16), { passive: false });
         this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this));
         this.canvas.addEventListener('touchcancel', this.endDrag.bind(this));
+
+        // Atajos de teclado
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey) {
+                switch (e.key) {
+                    case 'z': this.undo(); break;
+                    case 'y': this.redo(); break;
+                    case 's': e.preventDefault(); this.saveProject(); break;
+                }
+            } else {
+                switch (e.key) {
+                    case 'n': this.newProject(); break;
+                    case '+': this.adjustZoom(0.2); break;
+                    case '-': this.adjustZoom(-0.2); break;
+                }
+            }
+        });
 
         // Botones de herramientas
         document.getElementById('newBtn').addEventListener('click', this.newProject.bind(this));
         document.getElementById('saveBtn').addEventListener('click', this.saveProject.bind(this));
+        document.getElementById('saveAsBtn').addEventListener('click', this.saveProjectAs.bind(this));
         document.getElementById('undoBtn').addEventListener('click', this.undo.bind(this));
         document.getElementById('redoBtn').addEventListener('click', this.redo.bind(this));
 
@@ -82,6 +98,7 @@ class CrochetEditor {
         guideLines.addEventListener('input', () => {
             this.state.guideLines = parseInt(guideLines.value);
             document.getElementById('guideLinesValue').textContent = this.state.guideLines;
+            this.state.needsStaticRedraw = true;
             this.render();
         });
 
@@ -89,6 +106,7 @@ class CrochetEditor {
         ringSpacing.addEventListener('input', () => {
             this.state.ringSpacing = parseInt(ringSpacing.value);
             document.getElementById('ringSpacingValue').textContent = `${this.state.ringSpacing}px`;
+            this.state.needsStaticRedraw = true;
             this.render();
         });
 
@@ -111,6 +129,8 @@ class CrochetEditor {
             document.documentElement.dataset.theme = 
                 document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
         });
+
+        window.addEventListener('resize', () => this.resizeCanvas());
     }
 
     initStitchPalette() {
@@ -137,6 +157,14 @@ class CrochetEditor {
         document.getElementById('exportPdf').addEventListener('click', this.generatePDF.bind(this));
     }
 
+    debounce(func, wait) {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     startDrag(e) {
         this.state.isDragging = true;
         this.state.lastPos = { x: e.clientX, y: e.clientY };
@@ -146,14 +174,16 @@ class CrochetEditor {
         if (!this.state.isDragging) return;
         const newX = e.clientX;
         const newY = e.clientY;
-        this.state.offset.x += newX - this.state.lastPos.x;
-        this.state.offset.y += newY - this.state.lastPos.y;
+        this.state.targetOffset.x += newX - this.state.lastPos.x;
+        this.state.targetOffset.y += newY - this.state.lastPos.y;
         this.state.lastPos = { x: newX, y: newY };
-        this.render();
+        this.animate();
     }
 
     endDrag() {
         this.state.isDragging = false;
+        this.state.offset.x = this.state.targetOffset.x;
+        this.state.offset.y = this.state.targetOffset.y;
     }
 
     handleWheel(e) {
@@ -201,6 +231,13 @@ class CrochetEditor {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
+    handleMouseMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left - this.state.offset.x) / this.state.scale;
+        const y = (e.clientY - rect.top - this.state.offset.y) / this.state.scale;
+        this.render(x, y); // Pasar posición del ratón para retroalimentación
+    }
+
     handleCanvasClick(e) {
         const rect = this.canvas.getBoundingClientRect();
         const x = (e.clientX - rect.left - this.state.offset.x) / this.state.scale;
@@ -221,8 +258,12 @@ class CrochetEditor {
         );
 
         if (existingPointIndex >= 0) {
-            this.state.matrix.splice(existingPointIndex, 1); // Eliminar punto si ya existe
-        } else if (ring > 0 && ring <= 12) { // Limitar a 12 anillos
+            if (e.shiftKey) {
+                this.state.matrix[existingPointIndex].type = this.state.selectedStitch;
+            } else {
+                this.state.matrix.splice(existingPointIndex, 1);
+            }
+        } else if (ring > 0 && ring <= 12) {
             this.state.matrix.push({
                 ring,
                 segment,
@@ -234,9 +275,15 @@ class CrochetEditor {
         this.render();
     }
 
-    render() {
+    render(mouseX = null, mouseY = null) {
         requestAnimationFrame(() => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // Actualizar offset y escala con animación suave
+            this.state.offset.x += (this.state.targetOffset.x - this.state.offset.x) * 0.1;
+            this.state.offset.y += (this.state.targetOffset.y - this.state.offset.y) * 0.1;
+            this.state.scale += (this.state.targetScale - this.state.scale) * 0.1;
+
             this.ctx.save();
             this.ctx.translate(this.state.offset.x, this.state.offset.y);
             this.ctx.scale(this.state.scale, this.state.scale);
@@ -244,35 +291,46 @@ class CrochetEditor {
             const centerX = this.canvas.width / 2 / this.state.scale;
             const centerY = this.canvas.height / 2 / this.state.scale;
 
-            // Dibujar anillos
-            for (let r = 1; r <= 12; r++) {
-                this.ctx.beginPath();
-                this.ctx.arc(centerX, centerY, r * this.state.ringSpacing, 0, Math.PI * 2);
-                this.ctx.strokeStyle = '#ddd';
-                this.ctx.lineWidth = 1 / this.state.scale;
-                this.ctx.stroke();
-            }
+            // Dibujar elementos estáticos desde el cache
+            if (this.state.needsStaticRedraw) {
+                this.staticCtx.clearRect(0, 0, this.staticCanvas.width, this.staticCanvas.height);
+                this.staticCtx.save();
+                this.staticCtx.translate(this.state.offset.x, this.state.offset.y);
+                this.staticCtx.scale(this.state.scale, this.state.scale);
 
-            // Dibujar guías radiales
-            for (let i = 0; i < this.state.guideLines; i++) {
-                const angle = (i / this.state.guideLines) * Math.PI * 2;
-                this.ctx.beginPath();
-                this.ctx.moveTo(centerX, centerY);
-                this.ctx.lineTo(
-                    centerX + Math.cos(angle) * this.state.ringSpacing * 12,
-                    centerY + Math.sin(angle) * this.state.ringSpacing * 12
-                );
-                this.ctx.strokeStyle = '#eee';
-                this.ctx.stroke();
-            }
+                // Anillos
+                for (let r = 1; r <= 12; r++) {
+                    this.staticCtx.beginPath();
+                    this.staticCtx.arc(centerX, centerY, r * this.state.ringSpacing, 0, Math.PI * 2);
+                    this.staticCtx.strokeStyle = '#ddd';
+                    this.staticCtx.lineWidth = 1 / this.state.scale;
+                    this.staticCtx.stroke();
+                }
 
-            // Dibujar puntadas
+                // Guías radiales
+                for (let i = 0; i < this.state.guideLines; i++) {
+                    const angle = (i / this.state.guideLines) * Math.PI * 2;
+                    this.staticCtx.beginPath();
+                    this.staticCtx.moveTo(centerX, centerY);
+                    this.staticCtx.lineTo(
+                        centerX + Math.cos(angle) * this.state.ringSpacing * 12,
+                        centerY + Math.sin(angle) * this.state.ringSpacing * 12
+                    );
+                    this.staticCtx.strokeStyle = '#eee';
+                    this.staticCtx.stroke();
+                }
+
+                this.staticCtx.restore();
+                this.state.needsStaticRedraw = false;
+            }
+            this.ctx.drawImage(this.staticCanvas, 0, 0);
+
+            // Dibujar puntadas dinámicas
             this.state.matrix.forEach(point => {
                 const angle = (point.segment / this.state.guideLines) * Math.PI * 2;
                 const x = centerX + Math.cos(angle) * (point.ring * this.state.ringSpacing);
                 const y = centerY + Math.sin(angle) * (point.ring * this.state.ringSpacing);
                 const stitch = this.STITCH_TYPES[point.type];
-                
                 this.ctx.fillStyle = stitch.color;
                 this.ctx.font = `${20 / this.state.scale}px Arial`;
                 this.ctx.textAlign = 'center';
@@ -280,19 +338,55 @@ class CrochetEditor {
                 this.ctx.fillText(stitch.symbol, x, y);
             });
 
+            // Retroalimentación visual del cursor
+            if (mouseX && mouseY) {
+                const dx = mouseX - centerX;
+                const dy = mouseY - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const ring = Math.round(distance / this.state.ringSpacing);
+                const angle = Math.atan2(dy, dx) + Math.PI * 2;
+                const segment = Math.round((angle / (Math.PI * 2)) * this.state.guideLines) % this.state.guideLines;
+                if (ring > 0 && ring <= 12) {
+                    const x = centerX + Math.cos(angle) * (ring * this.state.ringSpacing);
+                    const y = centerY + Math.sin(angle) * (ring * this.state.ringSpacing);
+                    const stitch = this.STITCH_TYPES[this.state.selectedStitch];
+                    this.ctx.fillStyle = stitch.color + '80'; // 50% opacidad
+                    this.ctx.fillText(stitch.symbol, x, y);
+                }
+            }
+
             this.ctx.restore();
+
+            // Actualizar estado de botones
+            document.getElementById('undoBtn').disabled = this.state.historyIndex === 0;
+            document.getElementById('redoBtn').disabled = this.state.historyIndex === this.state.history.length - 1;
+
+            // Vista previa en tiempo real
+            this.updateExportPreview();
         });
     }
 
-    adjustZoom(amount) {
-        this.state.scale = Math.max(0.3, Math.min(3, this.state.scale + amount));
+    animate() {
         this.render();
+        if (
+            Math.abs(this.state.scale - this.state.targetScale) > 0.01 ||
+            Math.abs(this.state.offset.x - this.state.targetOffset.x) > 1 ||
+            Math.abs(this.state.offset.y - this.state.targetOffset.y) > 1
+        ) {
+            requestAnimationFrame(this.animate.bind(this));
+        }
+    }
+
+    adjustZoom(amount) {
+        this.state.targetScale = Math.max(0.3, Math.min(3, this.state.targetScale + amount));
+        this.animate();
     }
 
     resetView() {
-        this.state.scale = 1;
+        this.state.targetScale = 1;
+        this.state.targetOffset = { x: 0, y: 0 };
         this.state.offset = { x: 0, y: 0 };
-        this.render();
+        this.animate();
     }
 
     saveState() {
@@ -335,6 +429,17 @@ class CrochetEditor {
         alert('Proyecto guardado!');
     }
 
+    saveProjectAs() {
+        const name = prompt('Nombre del proyecto:', `Patrón ${new Date().toLocaleDateString()}`);
+        if (name) {
+            const projects = JSON.parse(localStorage.getItem('crochetProjects') || '{}');
+            projects[name] = this.state.matrix;
+            localStorage.setItem('crochetProjects', JSON.stringify(projects));
+            this.loadProjects(); // Actualizar lista
+            alert(`Proyecto "${name}" guardado!`);
+        }
+    }
+
     loadFromLocalStorage() {
         const saved = localStorage.getItem('crochetPattern');
         if (saved) {
@@ -345,12 +450,37 @@ class CrochetEditor {
         }
     }
 
-    exportAsText() {
+    loadProjects() {
+        const projects = JSON.parse(localStorage.getItem('crochetProjects') || '{}');
+        const select = document.getElementById('loadProjects');
+        select.innerHTML = '<option value="">Cargar proyecto...</option>' + 
+            Object.keys(projects).map(name => `<option value="${name}">${name}</option>`).join('');
+        select.addEventListener('change', () => {
+            if (select.value) {
+                this.state.matrix = JSON.parse(JSON.stringify(projects[select.value]));
+                this.state.history = [JSON.parse(JSON.stringify(projects[select.value]))];
+                this.state.historyIndex = 0;
+                this.render();
+            }
+        });
+    }
+
+    updateExportPreview() {
         const text = this.state.matrix
             .sort((a, b) => a.ring - b.ring || a.segment - b.segment)
             .map(p => `Anillo ${p.ring}, Segmento ${p.segment}: ${this.STITCH_TYPES[p.type].desc}`)
             .join('\n');
         document.getElementById('exportText').value = text || 'Patrón vacío';
+    }
+
+    exportAsText() {
+        this.updateExportPreview();
+        const text = document.getElementById('exportText').value;
+        const blob = new Blob([text], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'patron_crochet.txt';
+        link.click();
     }
 
     exportAsImage() {
@@ -365,14 +495,22 @@ class CrochetEditor {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         const centerX = doc.internal.pageSize.width / 2;
-        const centerY = doc.internal.pageSize.height / 2;
+        const centerY = 100;
 
-        // Dibujar anillos
+        doc.setFontSize(16);
+        doc.text('Patrón de Crochet Radial', centerX, 20, { align: 'center' });
+
+        let y = 40;
+        Object.entries(this.STITCH_TYPES).forEach(([_, stitch]) => {
+            doc.setTextColor(stitch.color);
+            doc.text(`${stitch.symbol} - ${stitch.desc}`, 20, y);
+            y += 10;
+        });
+        doc.setTextColor('#000000');
+
         for (let r = 1; r <= 12; r++) {
             doc.circle(centerX, centerY, r * 10);
         }
-
-        // Dibujar puntadas
         this.state.matrix.forEach(point => {
             const angle = (point.segment / this.state.guideLines) * Math.PI * 2;
             const x = centerX + Math.cos(angle) * (point.ring * 10);
