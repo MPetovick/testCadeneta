@@ -22,13 +22,17 @@
                 <option value="punt_doble_alt">Punto Doble Alto (⇑)</option>
                 <option value="picot">Picot (¤)</option>
             </select>
-            <button id="zoomIn">+</button>
-            <span id="zoomLevel">Zoom: 100%</span>
-            <button id="zoomOut">-</button>
             <button id="resetBtn">Reiniciar</button>
             <button id="exportBtn">Exportar</button>
         </div>
-        <div id="grid"></div>
+        <div class="main-content">
+            <div class="zoom-bar">
+                <button id="zoomIn">+</button>
+                <span id="zoomLevel">Zoom: 100%</span>
+                <button id="zoomOut">-</button>
+            </div>
+            <div id="grid"></div>
+        </div>
         <textarea id="exportText" placeholder="Secuencia aquí..." readonly></textarea>
     </div>
     <script src="script.js"></script>
