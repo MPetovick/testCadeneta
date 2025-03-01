@@ -25,26 +25,25 @@ function renderGrid() {
     const centerX = 200;
     const centerY = 200;
     const ringSpacing = 50;
-    const maxRings = Math.ceil(200 / ringSpacing);
+    const maxRings = Math.max(Math.ceil(200 / ringSpacing), Math.max(...matrix.map(p => p.ring + 1))); // Dinámico
 
+    // Líneas guía
     ctx.strokeStyle = '#ccc';
     ctx.lineWidth = 1;
 
-    // Línea vertical
     ctx.beginPath();
     ctx.moveTo(centerX, 0);
     ctx.lineTo(centerX, 400);
     ctx.stroke();
 
-    // Línea horizontal
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     ctx.lineTo(400, centerY);
     ctx.stroke();
 
-    // Líneas diagonales (8 en total)
-    for (let i = 0; i < 8; i++) {
-        let angle = (i / 8) * 2 * Math.PI;
+    const guideAngles = 8; // 8 líneas guía
+    for (let i = 0; i < guideAngles; i++) {
+        let angle = (i / guideAngles) * 2 * Math.PI;
         let x = centerX + 200 * Math.cos(angle);
         let y = centerY + 200 * Math.sin(angle);
         ctx.beginPath();
@@ -90,9 +89,36 @@ function handleClick(event) {
     if (angle < 0) angle += 2 * Math.PI;
 
     const guideAngles = 8;
-    const snapAngle = Math.round((angle / (2 * Math.PI)) * guideAngles) * (2 * Math.PI / guideAngles);
+    const segmentSize = 2 * Math.PI / guideAngles;
+    const segmentIndex = Math.floor(angle / segmentSize);
+    // Colocar el punto en el centro del segmento
+    const snapAngle = segmentIndex * segmentSize + segmentSize / 2;
 
-    matrix.push({ ring, angle: snapAngle, stitch: selectedStitch.value });
+    // Verificar si ya existe un punto cercano (tolerancia de 10px)
+    const tolerance = 10;
+    const clickedX = centerX + (ring * ringSpacing) * Math.cos(snapAngle);
+    const clickedY = centerY + (ring * ringSpacing) * Math.sin(snapAngle);
+    let existingPointIndex = -1;
+
+    for (let i = 0; i < matrix.length; i++) {
+        const point = matrix[i];
+        const pointX = centerX + (point.ring * ringSpacing) * Math.cos(point.angle);
+        const pointY = centerY + (point.ring * ringSpacing) * Math.sin(point.angle);
+        const dist = Math.sqrt((clickedX - pointX) ** 2 + (clickedY - pointY) ** 2);
+        if (dist < tolerance) {
+            existingPointIndex = i;
+            break;
+        }
+    }
+
+    if (existingPointIndex >= 0) {
+        // Borrar punto existente
+        matrix.splice(existingPointIndex, 1);
+    } else {
+        // Añadir nuevo punto
+        matrix.push({ ring, angle: snapAngle, stitch: selectedStitch.value });
+    }
+
     renderGrid();
 }
 
