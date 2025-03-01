@@ -129,7 +129,7 @@ class CrochetEditor {
 
     initStitchPalette() {
         const palette = document.getElementById('stitchPalette');
-        palette.innerHTML = ''; // Limpiar cualquier contenido previo
+        palette.innerHTML = '';
         Object.entries(this.STITCH_TYPES).forEach(([key, stitch]) => {
             const btn = document.createElement('button');
             btn.className = 'stitch-btn';
@@ -144,7 +144,7 @@ class CrochetEditor {
             palette.appendChild(btn);
         });
         const firstBtn = palette.querySelector('.stitch-btn');
-        if (firstBtn) firstBtn.classList.add('active'); // Asegurar que el primero esté activo
+        if (firstBtn) firstBtn.classList.add('active');
     }
 
     initExportButtons() {
@@ -276,38 +276,44 @@ class CrochetEditor {
         requestAnimationFrame(() => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+            // Actualizar offset y escala con animación suave
             this.state.offset.x += (this.state.targetOffset.x - this.state.offset.x) * 0.1;
             this.state.offset.y += (this.state.targetOffset.y - this.state.offset.y) * 0.1;
             this.state.scale += (this.state.targetScale - this.state.scale) * 0.1;
 
+            // Calcular el centro del canvas sin escalar aún
+            const centerX = this.canvas.width / 2;
+            const centerY = this.canvas.height / 2;
+
+            // Aplicar transformaciones al contexto principal
             this.ctx.save();
-            this.ctx.translate(this.state.offset.x, this.state.offset.y);
+            this.ctx.translate(centerX + this.state.offset.x, centerY + this.state.offset.y);
             this.ctx.scale(this.state.scale, this.state.scale);
 
-            const centerX = this.canvas.width / 2 / this.state.scale;
-            const centerY = this.canvas.height / 2 / this.state.scale;
-
+            // Dibujar elementos estáticos desde el cache
             if (this.state.needsStaticRedraw) {
                 this.staticCtx.clearRect(0, 0, this.staticCanvas.width, this.staticCanvas.height);
                 this.staticCtx.save();
-                this.staticCtx.translate(this.state.offset.x, this.state.offset.y);
+                this.staticCtx.translate(centerX, centerY);
                 this.staticCtx.scale(this.state.scale, this.state.scale);
 
+                // Anillos
                 for (let r = 1; r <= 12; r++) {
                     this.staticCtx.beginPath();
-                    this.staticCtx.arc(centerX, centerY, r * this.state.ringSpacing, 0, Math.PI * 2);
+                    this.staticCtx.arc(0, 0, r * this.state.ringSpacing, 0, Math.PI * 2);
                     this.staticCtx.strokeStyle = '#ddd';
                     this.staticCtx.lineWidth = 1 / this.state.scale;
                     this.staticCtx.stroke();
                 }
 
+                // Guías radiales
                 for (let i = 0; i < this.state.guideLines; i++) {
                     const angle = (i / this.state.guideLines) * Math.PI * 2;
                     this.staticCtx.beginPath();
-                    this.staticCtx.moveTo(centerX, centerY);
+                    this.staticCtx.moveTo(0, 0);
                     this.staticCtx.lineTo(
-                        centerX + Math.cos(angle) * this.state.ringSpacing * 12,
-                        centerY + Math.sin(angle) * this.state.ringSpacing * 12
+                        Math.cos(angle) * this.state.ringSpacing * 12,
+                        Math.sin(angle) * this.state.ringSpacing * 12
                     );
                     this.staticCtx.strokeStyle = '#eee';
                     this.staticCtx.stroke();
@@ -316,13 +322,15 @@ class CrochetEditor {
                 this.staticCtx.restore();
                 this.state.needsStaticRedraw = false;
             }
-            this.ctx.drawImage(this.staticCanvas, 0, 0);
+            this.ctx.drawImage(this.staticCanvas, -centerX, -centerY);
 
+            // Dibujar puntadas dinámicas (centro en 0,0 después de la traslación)
             this.state.matrix.forEach(point => {
                 const angle = (point.segment / this.state.guideLines) * Math.PI * 2;
-                const x = centerX + Math.cos(angle) * (point.ring * this.state.ringSpacing);
-                const y = centerY + Math.sin(angle) * (point.ring * this.state.ringSpacing);
+                const x = Math.cos(angle) * (point.ring * this.state.ringSpacing);
+                const y = Math.sin(angle) * (point.ring * this.state.ringSpacing);
                 const stitch = this.STITCH_TYPES[point.type];
+                
                 this.ctx.fillStyle = stitch.color;
                 this.ctx.font = `${20 / this.state.scale}px Arial`;
                 this.ctx.textAlign = 'center';
@@ -330,16 +338,17 @@ class CrochetEditor {
                 this.ctx.fillText(stitch.symbol, x, y);
             });
 
+            // Retroalimentación visual del cursor
             if (mouseX && mouseY) {
-                const dx = mouseX - centerX;
-                const dy = mouseY - centerY;
+                const dx = mouseX;
+                const dy = mouseY;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 const ring = Math.round(distance / this.state.ringSpacing);
                 const angle = Math.atan2(dy, dx) + Math.PI * 2;
                 const segment = Math.round((angle / (Math.PI * 2)) * this.state.guideLines) % this.state.guideLines;
                 if (ring > 0 && ring <= 12) {
-                    const x = centerX + Math.cos(angle) * (ring * this.state.ringSpacing);
-                    const y = centerY + Math.sin(angle) * (ring * this.state.ringSpacing);
+                    const x = Math.cos(angle) * (ring * this.state.ringSpacing);
+                    const y = Math.sin(angle) * (ring * this.state.ringSpacing);
                     const stitch = this.STITCH_TYPES[this.state.selectedStitch];
                     this.ctx.fillStyle = stitch.color + '80';
                     this.ctx.fillText(stitch.symbol, x, y);
@@ -348,9 +357,11 @@ class CrochetEditor {
 
             this.ctx.restore();
 
+            // Actualizar estado de botones
             document.getElementById('undoBtn').disabled = this.state.historyIndex === 0;
             document.getElementById('redoBtn').disabled = this.state.historyIndex === this.state.history.length - 1;
 
+            // Vista previa en tiempo real
             this.updateExportPreview();
         });
     }
