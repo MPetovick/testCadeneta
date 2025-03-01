@@ -114,11 +114,9 @@ class CrochetEditor {
                 document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
         });
 
-        // Tooltip para puntadas
         const helpBtn = document.getElementById('stitchHelpBtn');
         helpBtn.addEventListener('click', (e) => this.toggleStitchTooltip(e));
 
-        // Ocultar tooltip al hacer clic fuera
         document.addEventListener('click', (e) => {
             const tooltip = document.getElementById('stitchTooltip');
             if (!helpBtn.contains(e.target) && !tooltip.contains(e.target)) {
@@ -131,6 +129,7 @@ class CrochetEditor {
 
     initStitchPalette() {
         const palette = document.getElementById('stitchPalette');
+        palette.innerHTML = ''; // Limpiar cualquier contenido previo
         Object.entries(this.STITCH_TYPES).forEach(([key, stitch]) => {
             const btn = document.createElement('button');
             btn.className = 'stitch-btn';
@@ -144,13 +143,15 @@ class CrochetEditor {
             });
             palette.appendChild(btn);
         });
-        palette.querySelector('.stitch-btn').classList.add('active');
+        const firstBtn = palette.querySelector('.stitch-btn');
+        if (firstBtn) firstBtn.classList.add('active'); // Asegurar que el primero esté activo
     }
 
     initExportButtons() {
         document.getElementById('exportTxt').addEventListener('click', this.exportAsText.bind(this));
         document.getElementById('exportPng').addEventListener('click', this.exportAsImage.bind(this));
         document.getElementById('exportPdf').addEventListener('click', this.generatePDF.bind(this));
+        document.getElementById('exportSequence').addEventListener('click', this.exportSequence.bind(this));
     }
 
     debounce(func, wait) {
@@ -509,6 +510,18 @@ class CrochetEditor {
         });
 
         doc.save('patron_crochet.pdf');
+    }
+
+    exportSequence() {
+        const sequence = this.state.matrix
+            .sort((a, b) => a.ring - b.ring || a.segment - b.segment)
+            .map(p => this.STITCH_TYPES[p.type].symbol)
+            .join(' ');
+        const blob = new Blob([sequence], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'secuencia_crochet.txt';
+        link.click();
     }
 
     toggleStitchTooltip(e) {
