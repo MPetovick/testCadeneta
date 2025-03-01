@@ -1,8 +1,9 @@
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f9f9f9;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f7f9;
     margin: 0;
     padding: 20px;
+    color: #2c3e50;
 }
 
 .container {
@@ -12,9 +13,10 @@ body {
 }
 
 h1 {
-    color: #2c3e50;
+    color: #34495e;
     margin-bottom: 20px;
-    font-size: 2em;
+    font-size: 2.2em;
+    font-weight: 600;
 }
 
 .controls {
@@ -26,61 +28,61 @@ h1 {
     flex-wrap: wrap;
 }
 
-.main-content {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    align-items: flex-start;
-}
-
-.zoom-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: center;
-    padding: 10px;
-    background-color: #ecf0f1;
-    border-radius: 5px;
-}
-
 label {
     color: #34495e;
     font-weight: bold;
+    font-size: 1.1em;
 }
 
 input[type="number"] {
     width: 60px;
-    padding: 6px;
+    padding: 8px;
     border: 2px solid #bdc3c7;
     border-radius: 5px;
     font-size: 1em;
+    transition: border-color 0.3s;
+}
+
+input[type="number"]:focus {
+    border-color: #3498db;
 }
 
 select {
-    padding: 6px;
+    padding: 8px;
     border: 2px solid #bdc3c7;
     border-radius: 5px;
     font-size: 1em;
+    transition: border-color 0.3s;
+}
+
+select:focus {
+    border-color: #3498db;
 }
 
 button {
-    padding: 6px 12px;
+    padding: 8px 16px;
     background-color: #3498db;
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-size: 1em;
-    transition: background-color 0.3s;
+    transition: background-color 0.3s, transform 0.1s;
 }
 
 button:hover {
     background-color: #2980b9;
+    transform: scale(1.05);
+}
+
+button:active {
+    transform: scale(0.95);
 }
 
 #zoomIn, #zoomOut {
     background-color: #7f8c8d;
-    width: 35px;
+    width: 40px;
+    font-size: 1.2em;
 }
 
 #zoomIn:hover, #zoomOut:hover {
@@ -97,8 +99,26 @@ button:hover {
 
 #zoomLevel {
     color: #34495e;
-    font-size: 1em;
+    font-size: 1.1em;
     font-weight: bold;
+}
+
+.main-content {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.zoom-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    padding: 15px;
+    background-color: #ecf0f1;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 #grid {
@@ -108,9 +128,10 @@ button:hover {
     aspect-ratio: 1 / 1;
     background-color: #fff;
     border: 2px solid #ecf0f1;
-    border-radius: 5px;
-    margin: 0 auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     cursor: move;
+    transition: transform 0.3s ease;
 }
 
 textarea {
@@ -125,4 +146,9 @@ textarea {
     font-size: 1em;
     resize: none;
     background-color: #f7f9fa;
+    transition: border-color 0.3s;
+}
+
+textarea:focus {
+    border-color: #3498db;
 }
