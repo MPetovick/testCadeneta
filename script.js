@@ -124,7 +124,11 @@ class CrochetEditor {
 
     initStitchPalette() {
         const palette = document.getElementById('stitchPalette');
-        palette.innerHTML = '';
+        if (!palette) {
+            console.error('El elemento #stitchPalette no se encontró en el DOM');
+            return;
+        }
+        palette.innerHTML = ''; // Limpiar contenido previo
         Object.entries(this.STITCH_TYPES).forEach(([key, stitch]) => {
             const btn = document.createElement('button');
             btn.className = 'stitch-btn';
@@ -140,6 +144,7 @@ class CrochetEditor {
         });
         const firstBtn = palette.querySelector('.stitch-btn');
         if (firstBtn) firstBtn.classList.add('active');
+        else console.error('No se generaron botones en #stitchPalette');
     }
 
     initExportButtons() {
@@ -270,6 +275,7 @@ class CrochetEditor {
         requestAnimationFrame(() => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+            // Animación suave para escala y offset
             this.state.offset.x += (this.state.targetOffset.x - this.state.offset.x) * 0.1;
             this.state.offset.y += (this.state.targetOffset.y - this.state.offset.y) * 0.1;
             this.state.scale += (this.state.targetScale - this.state.scale) * 0.1;
@@ -277,55 +283,62 @@ class CrochetEditor {
             const centerX = this.canvas.width / 2;
             const centerY = this.canvas.height / 2;
 
+            // Precalcular constantes para el grid
+            const maxRadius = this.state.ringSpacing * 12;
+            const angleStep = Math.PI * 2 / this.state.guideLines;
+
+            // Aplicar transformaciones
             this.ctx.save();
             this.ctx.translate(centerX + this.state.offset.x, centerY + this.state.offset.y);
             this.ctx.scale(this.state.scale, this.state.scale);
 
+            // Renderizar grid estático si es necesario
             if (this.state.needsStaticRedraw) {
                 this.staticCtx.clearRect(0, 0, this.staticCanvas.width, this.staticCanvas.height);
                 this.staticCtx.save();
                 this.staticCtx.translate(centerX, centerY);
-                this.staticCtx.scale(this.state.scale, this.state.scale);
 
+                // Anillos
+                this.staticCtx.strokeStyle = '#ddd';
+                this.staticCtx.lineWidth = 1 / this.state.scale;
                 for (let r = 1; r <= 12; r++) {
                     this.staticCtx.beginPath();
                     this.staticCtx.arc(0, 0, r * this.state.ringSpacing, 0, Math.PI * 2);
-                    this.staticCtx.strokeStyle = '#ddd';
-                    this.staticCtx.lineWidth = 1 / this.state.scale;
                     this.staticCtx.stroke();
                 }
 
+                // Guías radiales
+                this.staticCtx.strokeStyle = '#eee';
+                this.staticCtx.beginPath();
                 for (let i = 0; i < this.state.guideLines; i++) {
-                    const angle = (i / this.state.guideLines) * Math.PI * 2;
-                    this.staticCtx.beginPath();
+                    const angle = i * angleStep;
+                    const cosAngle = Math.cos(angle);
+                    const sinAngle = Math.sin(angle);
                     this.staticCtx.moveTo(0, 0);
-                    this.staticCtx.lineTo(
-                        Math.cos(angle) * this.state.ringSpacing * 12,
-                        Math.sin(angle) * this.state.ringSpacing * 12
-                    );
-                    this.staticCtx.strokeStyle = '#eee';
-                    this.staticCtx.stroke();
+                    this.staticCtx.lineTo(cosAngle * maxRadius, sinAngle * maxRadius);
                 }
+                this.staticCtx.stroke();
 
                 this.staticCtx.restore();
                 this.state.needsStaticRedraw = false;
             }
             this.ctx.drawImage(this.staticCanvas, -centerX, -centerY);
 
+            // Dibujar puntadas dinámicas
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.font = `${20 / this.state.scale}px Arial`;
             this.state.matrix.forEach(point => {
-                const angle = (point.segment / this.state.guideLines) * Math.PI * 2;
+                const angle = point.segment * angleStep;
                 const x = Math.cos(angle) * (point.ring * this.state.ringSpacing);
                 const y = Math.sin(angle) * (point.ring * this.state.ringSpacing);
                 const stitch = this.STITCH_TYPES[point.type];
-                
                 this.ctx.fillStyle = stitch.color;
-                this.ctx.font = `${20 / this.state.scale}px Arial`;
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
                 this.ctx.fillText(stitch.symbol, x, y);
             });
 
-            if (mouseX && mouseY) {
+            // Retroalimentación visual del cursor
+            if (mouseX !== null && mouseY !== null) {
                 const dx = mouseX;
                 const dy = mouseY;
                 const distance = Math.sqrt(dx * dx + dy * dy);
