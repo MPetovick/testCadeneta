@@ -94,6 +94,12 @@ body {
     transform: translateY(-2px);
 }
 
+.tool-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .stitch-palette {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -159,4 +165,10 @@ body {
     margin-bottom: 1rem;
 }
 
-/* Resto del CSS manteniendo mejores prácticas y temas */
+#loadProjects {
+    width: 100%;
+    padding: 0.5rem;
+    margin-top: 1rem;
+    border-radius: 6px;
+    border: 2px solid var(--primary-color);
+}
