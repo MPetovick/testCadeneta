@@ -16,7 +16,6 @@
         </div>
         <div class="navbar-tools">
             <button id="themeToggle"><i class="fas fa-moon"></i></button>
-            <button id="helpBtn"><i class="fas fa-question-circle"></i></button>
         </div>
     </nav>
 
@@ -47,7 +46,7 @@
             </div>
 
             <div class="tool-section">
-                <h3>Puntadas</h3>
+                <h3>Puntadas <button id="stitchHelpBtn" class="help-btn"><i class="fas fa-question-circle"></i></button></h3>
                 <div class="stitch-palette" id="stitchPalette">
                     <!-- Los botones se generan dinámicamente en JS -->
                 </div>
@@ -89,27 +88,8 @@
         </div>
     </main>
 
-    <!-- Modal de ayuda -->
-    <div id="helpModal" class="modal hidden">
-        <div class="modal-content">
-            <span class="close-modal">×</span>
-            <h2>Guía de Símbolos</h2>
-            <div id="stitchGuide"></div>
-            <h3>Instrucciones Rápidas</h3>
-            <ul class="help-list">
-                <li><kbd>Clic izquierdo</kbd>: Añadir/eliminar punto</li>
-                <li><kbd>Shift + Clic</kbd>: Cambiar tipo de punto</li>
-                <li><kbd>Rueda del ratón</kbd>: Zoom</li>
-                <li><kbd>Arrastrar</kbd>: Mover vista</li>
-                <li><kbd>Doble clic</kbd>: Restablecer vista</li>
-                <li><kbd>Ctrl+Z</kbd>: Deshacer</li>
-                <li><kbd>Ctrl+Y</kbd>: Rehacer</li>
-                <li><kbd>Ctrl+S</kbd>: Guardar</li>
-                <li><kbd>N</kbd>: Nuevo proyecto</li>
-                <li><kbd>+/-</kbd>: Zoom</li>
-            </ul>
-        </div>
-    </div>
+    <!-- Tooltip flotante -->
+    <div id="stitchTooltip" class="tooltip hidden"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="script.js"></script>
