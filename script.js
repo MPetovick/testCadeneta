@@ -9,6 +9,7 @@ const stitchSymbols = {
     picot: '¤'
 };
 
+const CANVAS_SIZE = 600;
 const RING_SPACING = 50;
 let scale = 1;
 let offsetX = 0;
@@ -26,15 +27,14 @@ const zoomOutBtn = document.getElementById('zoomOut');
 
 function render() {
     const canvas = document.createElement('canvas');
-    const canvasSize = grid.clientWidth; // Tamaño responsivo
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
+    canvas.width = CANVAS_SIZE;
+    canvas.height = CANVAS_SIZE;
     grid.innerHTML = '';
     grid.appendChild(canvas);
 
     const ctx = canvas.getContext('2d');
-    const centerX = canvasSize / 2 + offsetX;
-    const centerY = canvasSize / 2 + offsetY;
+    const centerX = CANVAS_SIZE / 2 + offsetX;
+    const centerY = CANVAS_SIZE / 2 + offsetY;
     const guideLines = Math.max(4, Math.min(24, parseInt(guideLinesInput.value) || 8));
     const maxRings = Math.max(4, Math.max(...matrix.map(p => p.ring + 1)) || 1);
 
@@ -47,8 +47,8 @@ function render() {
     ctx.lineWidth = 1 / scale;
     for (let i = 0; i < guideLines; i++) {
         const angle = (i / guideLines) * 2 * Math.PI;
-        const x = centerX + (canvasSize / 2 / scale) * Math.cos(angle);
-        const y = centerY + (canvasSize / 2 / scale) * Math.sin(angle);
+        const x = centerX + (CANVAS_SIZE / 2 / scale) * Math.cos(angle);
+        const y = centerY + (CANVAS_SIZE / 2 / scale) * Math.sin(angle);
         ctx.beginPath();
         ctx.moveTo(centerX, centerY);
         ctx.lineTo(x, y);
@@ -74,8 +74,8 @@ function render() {
 
     ctx.restore();
 
-    // Eventos
-    canvas.onclick = (e) => handleClick(e, guideLines, centerX, centerY, canvasSize);
+    // Eventos del canvas
+    canvas.onclick = (e) => handleClick(e, guideLines, centerX, centerY);
     canvas.onmousedown = (e) => {
         isDragging = true;
         dragStartX = e.clientX - offsetX;
@@ -92,7 +92,7 @@ function render() {
     canvas.onmouseleave = () => isDragging = false;
 }
 
-function handleClick(event, guideLines, centerX, centerY, canvasSize) {
+function handleClick(event, guideLines, centerX, centerY) {
     const rect = grid.firstChild.getBoundingClientRect();
     const x = (event.clientX - rect.left) / scale - offsetX / scale;
     const y = (event.clientY - rect.top) / scale - offsetY / scale;
@@ -101,24 +101,23 @@ function handleClick(event, guideLines, centerX, centerY, canvasSize) {
     const dy = y - centerY;
     const distance = Math.sqrt(dx * dx + dy * dy);
     const ring = Math.round(distance / RING_SPACING);
-    if (ring < 1) return; // Evitar puntos en el centro
 
     let angle = Math.atan2(dy, dx);
     if (angle < 0) angle += 2 * Math.PI;
 
     const segmentSize = 2 * Math.PI / guideLines;
     const segmentIndex = Math.floor(angle / segmentSize);
-    // Punto centrado en el segmento: mitad del anillo y mitad del ángulo
-    const snapAngle = segmentIndex * segmentSize + segmentSize / 2;
-    const snapRadius = (ring - 0.5) * RING_SPACING; // Mitad entre anillos
+    const baseAngle = segmentIndex * segmentSize;
+    const relativeAngle = (angle - baseAngle) / segmentSize;
+    const snapAngle = baseAngle + segmentSize * Math.min(Math.max(relativeAngle, 0.1), 0.9);
 
-    const pointX = centerX + snapRadius * Math.cos(snapAngle);
-    const pointY = centerY + snapRadius * Math.sin(snapAngle);
+    const pointX = centerX + (ring * RING_SPACING) * Math.cos(snapAngle);
+    const pointY = centerY + (ring * RING_SPACING) * Math.sin(snapAngle);
     const tolerance = 15 / scale;
 
     const existingPointIndex = matrix.findIndex(point => {
-        const px = centerX + (point.ring - 0.5) * RING_SPACING * Math.cos(point.angle);
-        const py = centerY + (point.ring - 0.5) * RING_SPACING * Math.sin(point.angle);
+        const px = centerX + (point.ring * RING_SPACING) * Math.cos(point.angle);
+        const py = centerY + (point.ring * RING_SPACING) * Math.sin(point.angle);
         return Math.sqrt((pointX - px) ** 2 + (pointY - py) ** 2) < tolerance;
     });
 
@@ -139,17 +138,16 @@ function exportSequence() {
 }
 
 // Eventos
-guideLinesInput.oninput = render;
+guideLinesInput.oninput = render; // Cambiar líneas guía en tiempo real
 zoomInBtn.onclick = () => {
     scale *= 1.2;
     render();
 };
 zoomOutBtn.onclick = () => {
-    scale = Math.max(0.5, scale / 1.2);
+    scale = Math.max(0.5, scale / 1.2); // Límite mínimo
     render();
 };
 exportBtn.onclick = exportSequence;
-window.onresize = render; // Ajustar al cambiar tamaño de ventana
 
 // Inicialización
 render();
