@@ -9,13 +9,14 @@ const stitchColors = {
     punt_mitja: '#f1c40f', punt_alt: '#9b59b6', punt_doble_alt: '#e67e22',
     picot: '#1abc9c'
 };
-const CANVAS_SIZE = 600;
 const RING_SPACING = 50;
+let canvasSize = Math.min(window.innerWidth * 0.8, 600); // Tamaño dinámico
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
 let isDragging = false;
 let dragStartX, dragStartY;
+let pinchStartDist = 0;
 
 // Elementos del DOM
 const grid = document.getElementById('grid');
@@ -30,16 +31,24 @@ const zoomLevel = document.getElementById('zoomLevel');
 
 // Canvas persistente
 const canvas = document.createElement('canvas');
-canvas.width = CANVAS_SIZE;
-canvas.height = CANVAS_SIZE;
+canvas.width = canvasSize;
+canvas.height = canvasSize;
 grid.appendChild(canvas);
 const ctx = canvas.getContext('2d');
 
+// Ajustar tamaño del canvas al redimensionar la ventana
+window.addEventListener('resize', () => {
+    canvasSize = Math.min(window.innerWidth * 0.8, 600);
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    render();
+});
+
 // Funciones principales
 function render() {
-    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-    const centerX = CANVAS_SIZE / 2 + offsetX;
-    const centerY = CANVAS_SIZE / 2 + offsetY;
+    ctx.clearRect(0, 0, canvasSize, canvasSize);
+    const centerX = canvasSize / 2 + offsetX;
+    const centerY = canvasSize / 2 + offsetY;
     const guideLines = Math.max(4, Math.min(24, parseInt(guideLinesInput.value) || 8));
     const maxRings = Math.max(4, Math.max(...matrix.map(p => p.ring + 1)) || 1);
 
@@ -47,13 +56,17 @@ function render() {
     ctx.scale(scale, scale);
     ctx.translate(offsetX / scale, offsetY / scale);
 
+    // Fondo blanco para mejor contraste
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasSize / scale, canvasSize / scale);
+
     // Líneas guía
     ctx.strokeStyle = '#a0a0a0';
     ctx.lineWidth = 1 / scale;
     for (let i = 0; i < guideLines; i++) {
         const angle = (i / guideLines) * 2 * Math.PI;
-        const x = centerX + (CANVAS_SIZE / 2 / scale) * Math.cos(angle);
-        const y = centerY + (CANVAS_SIZE / 2 / scale) * Math.sin(angle);
+        const x = centerX + (canvasSize / 2 / scale) * Math.cos(angle);
+        const y = centerY + (canvasSize / 2 / scale) * Math.sin(angle);
         ctx.beginPath();
         ctx.moveTo(centerX, centerY);
         ctx.lineTo(x, y);
@@ -87,8 +100,8 @@ function handleClick(event) {
     const y = (event.clientY - rect.top) / scale - offsetY / scale;
     const guideLines = parseInt(guideLinesInput.value) || 8;
 
-    const dx = x - CANVAS_SIZE / 2;
-    const dy = y - CANVAS_SIZE / 2;
+    const dx = x - canvasSize / 2;
+    const dy = y - canvasSize / 2;
     const distance = Math.sqrt(dx * dx + dy * dy);
     const ring = Math.round(distance / RING_SPACING);
 
@@ -99,13 +112,13 @@ function handleClick(event) {
     const segmentIndex = Math.floor(angle / segmentSize);
     const snapAngle = segmentIndex * segmentSize + segmentSize / 2;
 
-    const pointX = CANVAS_SIZE / 2 + (ring * RING_SPACING) * Math.cos(snapAngle);
-    const pointY = CANVAS_SIZE / 2 + (ring * RING_SPACING) * Math.sin(snapAngle);
+    const pointX = canvasSize / 2 + (ring * RING_SPACING) * Math.cos(snapAngle);
+    const pointY = canvasSize / 2 + (ring * RING_SPACING) * Math.sin(snapAngle);
     const tolerance = 15 / scale;
 
     const existingPointIndex = matrix.findIndex(point => {
-        const px = CANVAS_SIZE / 2 + (point.ring * RING_SPACING) * Math.cos(point.angle);
-        const py = CANVAS_SIZE / 2 + (point.ring * RING_SPACING) * Math.sin(point.angle);
+        const px = canvasSize / 2 + (point.ring * RING_SPACING) * Math.cos(point.angle);
+        const py = canvasSize / 2 + (point.ring * RING_SPACING) * Math.sin(point.angle);
         return Math.sqrt((pointX - px) ** 2 + (pointY - py) ** 2) < tolerance;
     });
 
@@ -137,7 +150,7 @@ function updateZoomLabel() {
     zoomLevel.textContent = `Zoom: ${Math.round(scale * 100)}%`;
 }
 
-// Eventos
+// Eventos para escritorio
 guideLinesInput.oninput = () => {
     const val = parseInt(guideLinesInput.value);
     guideLinesInput.value = Math.max(4, Math.min(24, val));
@@ -181,9 +194,74 @@ canvas.onmousemove = (e) => {
 canvas.onmouseup = () => isDragging = false;
 canvas.onmouseleave = () => isDragging = false;
 
+// Eventos para teclado
 document.addEventListener('keydown', (e) => {
     if (e.key === '+') zoomInBtn.click();
     if (e.key === '-') zoomOutBtn.click();
+});
+
+// Eventos táctiles para smartphones
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+        isDragging = true;
+        dragStartX = e.touches[0].clientX - offsetX;
+        dragStartY = e.touches[0].clientY - offsetY;
+    } else if (e.touches.length === 2) {
+        isDragging = false;
+        pinchStartDist = getPinchDistance(e.touches);
+    }
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && isDragging) {
+        offsetX = e.touches[0].clientX - dragStartX;
+        offsetY = e.touches[0].clientY - dragStartY;
+        requestAnimationFrame(render);
+    } else if (e.touches.length === 2) {
+        const pinchDist = getPinchDistance(e.touches);
+        if (pinchStartDist) {
+            const pinchScale = pinchDist / pinchStartDist;
+            scale = Math.max(0.5, scale * pinchScale);
+            pinchStartDist = pinchDist;
+            requestAnimationFrame(render);
+        }
+    }
+});
+
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    isDragging = false;
+    pinchStartDist = 0;
+});
+
+// Función auxiliar para calcular distancia entre dos toques
+function getPinchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Doble toque para zoom
+canvas.addEventListener('dblclick', () => {
+    scale *= 1.5;
+    render();
+});
+canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        let touchCount = 0;
+        const checkDoubleTap = setInterval(() => {
+            touchCount++;
+            if (touchCount > 1) {
+                scale *= 1.5;
+                render();
+                clearInterval(checkDoubleTap);
+            }
+            if (touchCount > 10) clearInterval(checkDoubleTap); // Timeout de 1s aprox
+        }, 100);
+    }
 });
 
 // Inicialización
