@@ -111,6 +111,7 @@ class CrochetEditor {
             }
         });
 
+        window.addEventListener('DOMContentLoaded', () => this.render()); // Asegurar render inicial
         window.addEventListener('resize', () => this.resizeCanvas());
     }
 
@@ -221,24 +222,19 @@ class CrochetEditor {
 
     handleMouseMove(e) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left - this.state.offset.x) / this.state.scale;
-        const y = (e.clientY - rect.top - this.state.offset.y) / this.state.scale;
+        const x = (e.clientX - rect.left - this.canvas.width / 2 - this.state.offset.x) / this.state.scale;
+        const y = (e.clientY - rect.top - this.canvas.height / 2 - this.state.offset.y) / this.state.scale;
         this.render(x, y);
     }
 
     handleCanvasClick(e) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left - this.state.offset.x) / this.state.scale;
-        const y = (e.clientY - rect.top - this.state.offset.y) / this.state.scale;
-        
-        const centerX = 0; // Centro relativo después de la traslación
-        const centerY = 0;
-        
-        const dx = x - centerX;
-        const dy = y - centerY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const mouseX = (e.clientX - rect.left - this.canvas.width / 2 - this.state.offset.x) / this.state.scale;
+        const mouseY = (e.clientY - rect.top - this.canvas.height / 2 - this.state.offset.y) / this.state.scale;
+
+        const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
         const ring = Math.round(distance / this.state.ringSpacing);
-        const angle = Math.atan2(dy, dx) + Math.PI * 2;
+        const angle = Math.atan2(mouseY, mouseX) + Math.PI * 2;
         const segment = Math.round((angle / (Math.PI * 2)) * this.state.guideLines) % this.state.guideLines;
 
         const existingPointIndex = this.state.matrix.findIndex(p => 
@@ -319,19 +315,18 @@ class CrochetEditor {
                 this.ctx.fillText(stitch.symbol, x, y);
             });
 
-            // Retroalimentación visual del cursor
+            // Retroalimentación visual del cursor (efecto preliminar)
             if (mouseX !== null && mouseY !== null) {
-                const dx = mouseX;
-                const dy = mouseY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
                 const ring = Math.round(distance / this.state.ringSpacing);
-                const angle = Math.atan2(dy, dx) + Math.PI * 2;
+                const angle = Math.atan2(mouseY, mouseX) + Math.PI * 2;
                 const segment = Math.round((angle / (Math.PI * 2)) * this.state.guideLines) % this.state.guideLines;
+
                 if (ring > 0 && ring <= ringCount) {
                     const x = Math.cos(angle) * (ring * this.state.ringSpacing);
                     const y = Math.sin(angle) * (ring * this.state.ringSpacing);
                     const stitch = this.STITCH_TYPES[this.state.selectedStitch];
-                    this.ctx.fillStyle = stitch.color + '80';
+                    this.ctx.fillStyle = stitch.color + '80'; // Restaurar efecto claro
                     this.ctx.fillText(stitch.symbol, x, y);
                 }
             }
