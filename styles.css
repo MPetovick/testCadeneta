@@ -71,6 +71,9 @@ body {
     font-size: 1.1em;
     border-bottom: 2px solid var(--secondary-color);
     padding-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .tool-grid {
@@ -100,6 +103,19 @@ body {
     transform: none;
 }
 
+.help-btn {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0;
+}
+
+.help-btn:hover {
+    color: var(--secondary-color);
+}
+
 .stitch-palette {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -111,10 +127,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.4rem;
+    font-size: 1rem; /* Reducido de 1.4rem */
     border: 2px solid var(--primary-color);
     border-radius: 6px;
     cursor: pointer;
+    padding: 0.5rem; /* Reducido para un tamaño más pequeño */
     transition: all 0.2s ease;
 }
 
@@ -171,4 +188,22 @@ body {
     margin-top: 1rem;
     border-radius: 6px;
     border: 2px solid var(--primary-color);
+}
+
+/* Estilos para el tooltip */
+.tooltip {
+    position: absolute;
+    background: var(--toolbar-bg);
+    color: var(--text-color);
+    padding: 1rem;
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    max-width: 250px;
+    z-index: 1000;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.tooltip.hidden {
+    display: none;
 }
