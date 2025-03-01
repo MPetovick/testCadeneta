@@ -276,28 +276,23 @@ class CrochetEditor {
         requestAnimationFrame(() => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-            // Actualizar offset y escala con animación suave
             this.state.offset.x += (this.state.targetOffset.x - this.state.offset.x) * 0.1;
             this.state.offset.y += (this.state.targetOffset.y - this.state.offset.y) * 0.1;
             this.state.scale += (this.state.targetScale - this.state.scale) * 0.1;
 
-            // Calcular el centro del canvas sin escalar aún
             const centerX = this.canvas.width / 2;
             const centerY = this.canvas.height / 2;
 
-            // Aplicar transformaciones al contexto principal
             this.ctx.save();
             this.ctx.translate(centerX + this.state.offset.x, centerY + this.state.offset.y);
             this.ctx.scale(this.state.scale, this.state.scale);
 
-            // Dibujar elementos estáticos desde el cache
             if (this.state.needsStaticRedraw) {
                 this.staticCtx.clearRect(0, 0, this.staticCanvas.width, this.staticCanvas.height);
                 this.staticCtx.save();
                 this.staticCtx.translate(centerX, centerY);
                 this.staticCtx.scale(this.state.scale, this.state.scale);
 
-                // Anillos
                 for (let r = 1; r <= 12; r++) {
                     this.staticCtx.beginPath();
                     this.staticCtx.arc(0, 0, r * this.state.ringSpacing, 0, Math.PI * 2);
@@ -306,7 +301,6 @@ class CrochetEditor {
                     this.staticCtx.stroke();
                 }
 
-                // Guías radiales
                 for (let i = 0; i < this.state.guideLines; i++) {
                     const angle = (i / this.state.guideLines) * Math.PI * 2;
                     this.staticCtx.beginPath();
@@ -324,7 +318,6 @@ class CrochetEditor {
             }
             this.ctx.drawImage(this.staticCanvas, -centerX, -centerY);
 
-            // Dibujar puntadas dinámicas (centro en 0,0 después de la traslación)
             this.state.matrix.forEach(point => {
                 const angle = (point.segment / this.state.guideLines) * Math.PI * 2;
                 const x = Math.cos(angle) * (point.ring * this.state.ringSpacing);
@@ -338,7 +331,6 @@ class CrochetEditor {
                 this.ctx.fillText(stitch.symbol, x, y);
             });
 
-            // Retroalimentación visual del cursor
             if (mouseX && mouseY) {
                 const dx = mouseX;
                 const dy = mouseY;
@@ -357,11 +349,9 @@ class CrochetEditor {
 
             this.ctx.restore();
 
-            // Actualizar estado de botones
             document.getElementById('undoBtn').disabled = this.state.historyIndex === 0;
             document.getElementById('redoBtn').disabled = this.state.historyIndex === this.state.history.length - 1;
 
-            // Vista previa en tiempo real
             this.updateExportPreview();
         });
     }
@@ -453,16 +443,47 @@ class CrochetEditor {
     loadProjects() {
         const projects = JSON.parse(localStorage.getItem('crochetProjects') || '{}');
         const select = document.getElementById('loadProjects');
+        const controls = document.querySelector('.project-controls');
+        
+        // Limpiar el botón de papelera anterior
+        const existingDeleteBtn = controls.querySelector('.delete-btn');
+        if (existingDeleteBtn) existingDeleteBtn.remove();
+
+        // Rellenar el select
         select.innerHTML = '<option value="">Cargar proyecto...</option>' + 
             Object.keys(projects).map(name => `<option value="${name}">${name}</option>`).join('');
+
+        // Manejar selección de proyecto
         select.addEventListener('change', () => {
+            const deleteBtn = controls.querySelector('.delete-btn');
+            if (deleteBtn) deleteBtn.remove(); // Eliminar botón previo
+
             if (select.value) {
                 this.state.matrix = JSON.parse(JSON.stringify(projects[select.value]));
                 this.state.history = [JSON.parse(JSON.stringify(projects[select.value]))];
                 this.state.historyIndex = 0;
                 this.render();
+
+                // Agregar botón de papelera
+                const btn = document.createElement('button');
+                btn.className = 'delete-btn';
+                btn.innerHTML = '<i class="fas fa-trash"></i>';
+                btn.title = 'Eliminar proyecto';
+                btn.addEventListener('click', () => this.deleteProject(select.value));
+                controls.insertBefore(btn, select);
             }
         });
+    }
+
+    deleteProject(projectName) {
+        if (confirm(`¿Seguro que quieres eliminar el proyecto "${projectName}"?`)) {
+            const projects = JSON.parse(localStorage.getItem('crochetProjects') || '{}');
+            delete projects[projectName];
+            localStorage.setItem('crochetProjects', JSON.stringify(projects));
+            this.loadProjects(); // Recargar lista
+            this.newProject(); // Limpiar el canvas
+            alert(`Proyecto "${projectName}" eliminado.`);
+        }
     }
 
     updateExportPreview() {
