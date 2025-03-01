@@ -127,12 +127,13 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem; /* Reducido de 1.4rem */
+    font-size: 0.9rem; /* Reducido aún más para un tamaño más pequeño */
     border: 2px solid var(--primary-color);
     border-radius: 6px;
     cursor: pointer;
-    padding: 0.5rem; /* Reducido para un tamaño más pequeño */
+    padding: 0.4rem; /* Ajustado para mantener proporciones */
     transition: all 0.2s ease;
+    background: var(--background-color); /* Asegurar visibilidad */
 }
 
 .stitch-btn.active {
@@ -190,7 +191,6 @@ body {
     border: 2px solid var(--primary-color);
 }
 
-/* Estilos para el tooltip */
 .tooltip {
     position: absolute;
     background: var(--toolbar-bg);
