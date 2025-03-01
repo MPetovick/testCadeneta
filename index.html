@@ -3,24 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crochet Grid</title>
+    <title>Patrones de Crochet Radial</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <h2>Cadeneta Editor de Patrons</h2>
-        <select id="stitch">
-            <option value="cadeneta">Cadeneta (#)</option>
-            <option value="punt_baix">Punt Baix (•)</option>
-            <option value="punt_pla">Punt Pla (-)</option>
-            <option value="punt_mitja">Punt Mitja (●)</option>
-            <option value="punt_alt">Punt Alt (↑)</option>
-            <option value="punt_doble_alt">Punt Doble Alt (⇑)</option>
-            <option value="picot">Picot (¤)</option>
-        </select>
-        <div id="grid" class="grid"></div>
-        <button id="exportBtn">Exportar Secuencia</button>
-        <textarea id="exportText" readonly></textarea>
+        <h1>Patrones de Crochet Radial</h1>
+        <div class="controls">
+            <label for="guideLines">Líneas guía: </label>
+            <input type="number" id="guideLines" min="4" max="24" value="8" step="1">
+            <label for="stitch">Puntada: </label>
+            <select id="stitch">
+                <option value="cadeneta">Cadeneta (#)</option>
+                <option value="punt_baix">Punto Bajo (•)</option>
+                <option value="punt_pla">Punto Plano (-)</option>
+                <option value="punt_mitja">Punto Medio (●)</option>
+                <option value="punt_alt">Punto Alto (↑)</option>
+                <option value="punt_doble_alt">Punto Doble Alto (⇑)</option>
+                <option value="picot">Picot (¤)</option>
+            </select>
+            <button id="exportBtn">Exportar</button>
+        </div>
+        <div id="grid"></div>
+        <textarea id="exportText" placeholder="Secuencia exportada aparecerá aquí..." readonly></textarea>
     </div>
     <script src="script.js"></script>
 </body>
