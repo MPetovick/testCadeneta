@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Crea patrones de crochet radiales fácilmente">
-    <title>Patrones de Crochet Radial - Premium</title>
+    <meta name="description" content="Crea patrones de crochet radiales de forma sencilla">
+    <title>Patrones de Crochet Radial</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,9 +14,9 @@
     <main>
         <section class="controls">
             <label for="guideLines">Líneas guía:</label>
-            <input type="number" id="guideLines" min="4" max="24" value="8">
+            <input type="number" id="guideLines" min="4" max="24" value="8" aria-label="Número de líneas guía">
             <label for="stitch">Puntada:</label>
-            <select id="stitch">
+            <select id="stitch" aria-label="Seleccionar tipo de puntada">
                 <option value="cadeneta">Cadeneta (#)</option>
                 <option value="punt_baix">Punto Bajo (•)</option>
                 <option value="punt_pla">Punto Plano (-)</option>
@@ -25,21 +25,27 @@
                 <option value="punt_doble_alt">Punto Doble Alto (⇑)</option>
                 <option value="picot">Picot (¤)</option>
             </select>
+            <button id="undoBtn">Deshacer</button>
+            <button id="redoBtn">Rehacer</button>
             <button id="resetBtn">Reiniciar</button>
             <button id="exportBtn">Exportar</button>
         </section>
-        <section class="main-content">
-            <div class="zoom-bar">
+        <section class="canvas-container">
+            <div class="zoom-controls">
                 <button id="zoomIn" aria-label="Aumentar zoom">+</button>
                 <span id="zoomLevel">Zoom: 100%</span>
                 <button id="zoomOut" aria-label="Disminuir zoom">-</button>
             </div>
-            <div id="grid"></div>
+            <canvas id="patternCanvas" width="600" height="600" aria-label="Área de diseño de patrones"></canvas>
         </section>
-        <textarea id="exportText" placeholder="Secuencia aquí..." readonly aria-label="Secuencia de patrones"></textarea>
+        <textarea id="exportText" readonly placeholder="Secuencia de patrones aquí..." aria-label="Secuencia exportada"></textarea>
+        <section class="help">
+            <h2>Ayuda</h2>
+            <p>Usa esta herramienta para crear patrones de crochet radiales. Selecciona una puntada y haz clic en el canvas para añadirla. Usa el zoom (+/-, rueda del mouse o pellizcar en táctil) y arrastra para moverte. Los símbolos están basados en la <a href="https://www.guiaparatejerbien.com/2010/11/puntos-y-simbolos-de-crochet.html?m=1" target="_blank">Guía para Tejer Bien</a>.</p>
+        </section>
     </main>
     <footer>
-        <p>© 2023 Patrones de Crochet</p>
+        <p>© 2023 Patrones de Crochet Radial</p>
     </footer>
     <script src="script.js"></script>
 </body>
