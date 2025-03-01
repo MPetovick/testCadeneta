@@ -1,9 +1,4 @@
-let matrix = [];
-let grid = document.getElementById('grid');
-let selectedStitch = document.getElementById('stitch');
-let exportBtn = document.getElementById('exportBtn');
-let exportText = document.getElementById('exportText');
-
+const matrix = [];
 const stitchSymbols = {
     cadeneta: '#',
     punt_baix: '•',
@@ -14,122 +9,131 @@ const stitchSymbols = {
     picot: '¤'
 };
 
-function renderGrid() {
-    grid.innerHTML = '';
+const grid = document.getElementById('grid');
+const guideLinesInput = document.getElementById('guideLines');
+const selectedStitch = document.getElementById('stitch');
+const exportBtn = document.getElementById('exportBtn');
+const exportText = document.getElementById('exportText');
+
+const CANVAS_SIZE = 600;
+const CENTER = CANVAS_SIZE / 2;
+const RING_SPACING = 50;
+
+function createCanvas() {
     const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 400;
-    grid.appendChild(canvas);
+    canvas.width = CANVAS_SIZE;
+    canvas.height = CANVAS_SIZE;
+    return canvas;
+}
 
-    const ctx = canvas.getContext('2d');
-    const centerX = 200;
-    const centerY = 200;
-    const ringSpacing = 50;
-    const maxRings = Math.max(Math.ceil(200 / ringSpacing), Math.max(...matrix.map(p => p.ring + 1))); // Dinámico
-
-    // Líneas guía
-    ctx.strokeStyle = '#ccc';
+function drawGuidelines(ctx, guideAngles) {
+    ctx.strokeStyle = '#d3d3d3';
     ctx.lineWidth = 1;
 
+    // Líneas principales (vertical y horizontal)
     ctx.beginPath();
-    ctx.moveTo(centerX, 0);
-    ctx.lineTo(centerX, 400);
+    ctx.moveTo(CENTER, 0);
+    ctx.lineTo(CENTER, CANVAS_SIZE);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(0, centerY);
-    ctx.lineTo(400, centerY);
+    ctx.moveTo(0, CENTER);
+    ctx.lineTo(CANVAS_SIZE, CENTER);
     ctx.stroke();
 
-    const guideAngles = 8; // 8 líneas guía
+    // Líneas diagonales
     for (let i = 0; i < guideAngles; i++) {
-        let angle = (i / guideAngles) * 2 * Math.PI;
-        let x = centerX + 200 * Math.cos(angle);
-        let y = centerY + 200 * Math.sin(angle);
+        const angle = (i / guideAngles) * 2 * Math.PI;
+        const x = CENTER + (CANVAS_SIZE / 2) * Math.cos(angle);
+        const y = CENTER + (CANVAS_SIZE / 2) * Math.sin(angle);
         ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
+        ctx.moveTo(CENTER, CENTER);
         ctx.lineTo(x, y);
         ctx.stroke();
     }
-
-    // Anillos
-    ctx.strokeStyle = '#ddd';
-    for (let r = 1; r <= maxRings; r++) {
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, r * ringSpacing, 0, 2 * Math.PI);
-        ctx.stroke();
-    }
-
-    // Puntos existentes
-    ctx.fillStyle = '#000';
-    matrix.forEach(point => {
-        let x = centerX + (point.ring * ringSpacing) * Math.cos(point.angle);
-        let y = centerY + (point.ring * ringSpacing) * Math.sin(point.angle);
-        ctx.font = '20px Arial';
-        ctx.fillText(stitchSymbols[point.stitch], x - 10, y + 10);
-    });
-
-    canvas.onclick = handleClick;
 }
 
-function handleClick(event) {
+function drawRings(ctx, maxRings) {
+    ctx.strokeStyle = '#e0e0e0';
+    for (let r = 1; r <= maxRings; r++) {
+        ctx.beginPath();
+        ctx.arc(CENTER, CENTER, r * RING_SPACING, 0, 2 * Math.PI);
+        ctx.stroke();
+    }
+}
+
+function drawPoints(ctx) {
+    ctx.fillStyle = '#333';
+    ctx.font = '24px Arial';
+    matrix.forEach(point => {
+        const x = CENTER + (point.ring * RING_SPACING) * Math.cos(point.angle);
+        const y = CENTER + (point.ring * RING_SPACING) * Math.sin(point.angle);
+        ctx.fillText(stitchSymbols[point.stitch], x - 12, y + 8);
+    });
+}
+
+function renderGrid() {
+    grid.innerHTML = '';
+    const canvas = createCanvas();
+    grid.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    const guideAngles = parseInt(guideLinesInput.value) || 8;
+    const maxRings = Math.max(Math.ceil(CENTER / RING_SPACING), Math.max(...matrix.map(p => p.ring + 1)) || 1);
+
+    drawGuidelines(ctx, guideAngles);
+    drawRings(ctx, maxRings);
+    drawPoints(ctx);
+
+    canvas.onclick = (event) => handleClick(event, guideAngles);
+}
+
+function handleClick(event, guideAngles) {
     const rect = grid.firstChild.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const centerX = 200;
-    const centerY = 200;
-    const ringSpacing = 50;
 
-    const dx = x - centerX;
-    const dy = y - centerY;
+    const dx = x - CENTER;
+    const dy = y - CENTER;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const ring = Math.round(distance / ringSpacing);
+    const ring = Math.round(distance / RING_SPACING);
 
     let angle = Math.atan2(dy, dx);
     if (angle < 0) angle += 2 * Math.PI;
 
-    const guideAngles = 8;
     const segmentSize = 2 * Math.PI / guideAngles;
     const segmentIndex = Math.floor(angle / segmentSize);
-    // Colocar el punto en el centro del segmento
     const snapAngle = segmentIndex * segmentSize + segmentSize / 2;
 
-    // Verificar si ya existe un punto cercano (tolerancia de 10px)
-    const tolerance = 10;
-    const clickedX = centerX + (ring * ringSpacing) * Math.cos(snapAngle);
-    const clickedY = centerY + (ring * ringSpacing) * Math.sin(snapAngle);
-    let existingPointIndex = -1;
+    const clickedX = CENTER + (ring * RING_SPACING) * Math.cos(snapAngle);
+    const clickedY = CENTER + (ring * RING_SPACING) * Math.sin(snapAngle);
+    const tolerance = 15;
 
-    for (let i = 0; i < matrix.length; i++) {
-        const point = matrix[i];
-        const pointX = centerX + (point.ring * ringSpacing) * Math.cos(point.angle);
-        const pointY = centerY + (point.ring * ringSpacing) * Math.sin(point.angle);
-        const dist = Math.sqrt((clickedX - pointX) ** 2 + (clickedY - pointY) ** 2);
-        if (dist < tolerance) {
-            existingPointIndex = i;
-            break;
-        }
-    }
+    const existingPointIndex = matrix.findIndex(point => {
+        const pointX = CENTER + (point.ring * RING_SPACING) * Math.cos(point.angle);
+        const pointY = CENTER + (point.ring * RING_SPACING) * Math.sin(point.angle);
+        return Math.sqrt((clickedX - pointX) ** 2 + (clickedY - pointY) ** 2) < tolerance;
+    });
 
     if (existingPointIndex >= 0) {
-        // Borrar punto existente
-        matrix.splice(existingPointIndex, 1);
+        matrix.splice(existingPointIndex, 1); // Borrar punto
     } else {
-        // Añadir nuevo punto
-        matrix.push({ ring, angle: snapAngle, stitch: selectedStitch.value });
+        matrix.push({ ring, angle: snapAngle, stitch: selectedStitch.value }); // Añadir punto
     }
 
     renderGrid();
 }
 
 function exportSequence() {
-    let sequence = '';
-    matrix.forEach(point => {
-        sequence += `${point.stitch} (anillo ${point.ring}, ángulo ${Math.round(point.angle * 180 / Math.PI)}°); `;
-    });
+    const sequence = matrix.map(point => 
+        `${point.stitch} (anillo ${point.ring}, ángulo ${Math.round(point.angle * 180 / Math.PI)}°)`)
+        .join('; ');
     exportText.value = sequence || 'No hay puntos en la cuadrícula.';
-    exportText.style.display = 'block';
 }
 
+// Eventos
+guideLinesInput.onchange = renderGrid;
 exportBtn.onclick = exportSequence;
+
+// Inicialización
 renderGrid();
