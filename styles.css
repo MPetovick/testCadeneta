@@ -26,6 +26,23 @@ h1 {
     flex-wrap: wrap;
 }
 
+.main-content {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.zoom-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    background-color: #ecf0f1;
+    border-radius: 5px;
+}
+
 label {
     color: #34495e;
     font-weight: bold;
