@@ -10,7 +10,7 @@ const stitchColors = {
     picot: '#1abc9c'
 };
 const RING_SPACING = 50;
-let canvasSize = Math.min(window.innerWidth * 0.8, 600); // Tamaño dinámico
+let canvasSize = Math.min(window.innerWidth * 0.8, 600);
 let scale = 1;
 let targetScale = 1;
 let offsetX = 0;
@@ -37,15 +37,19 @@ canvas.height = canvasSize;
 grid.appendChild(canvas);
 const ctx = canvas.getContext('2d');
 
-// Ajustar tamaño del canvas al redimensionar la ventana
+// Debounce para resize
+let resizeTimeout;
 window.addEventListener('resize', () => {
-    canvasSize = Math.min(window.innerWidth * 0.8, 600);
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
-    render();
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+        canvasSize = Math.min(window.innerWidth * 0.8, 600);
+        canvas.width = canvasSize;
+        canvas.height = canvasSize;
+        render();
+    }, 200);
 });
 
-// Funciones principales
+// Renderizado del canvas
 function render() {
     ctx.clearRect(0, 0, canvasSize, canvasSize);
     const centerX = canvasSize / 2 + offsetX;
@@ -57,11 +61,9 @@ function render() {
     ctx.scale(scale, scale);
     ctx.translate(offsetX / scale, offsetY / scale);
 
-    // Fondo blanco para mejor contraste
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvasSize / scale, canvasSize / scale);
 
-    // Líneas guía
     ctx.strokeStyle = '#a0a0a0';
     ctx.lineWidth = 1 / scale;
     for (let i = 0; i < guideLines; i++) {
@@ -74,7 +76,6 @@ function render() {
         ctx.stroke();
     }
 
-    // Anillos dinámicos
     ctx.strokeStyle = '#c0c0c0';
     for (let r = 1; r <= maxRings; r++) {
         ctx.beginPath();
@@ -82,7 +83,6 @@ function render() {
         ctx.stroke();
     }
 
-    // Puntos
     matrix.forEach(point => {
         const x = centerX + (point.ring * RING_SPACING) * Math.cos(point.angle);
         const y = centerY + (point.ring * RING_SPACING) * Math.sin(point.angle);
@@ -95,6 +95,7 @@ function render() {
     updateZoomLabel();
 }
 
+// Manejo de clics para añadir o eliminar puntos
 function handlePointPlacement(event, clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const x = (clientX - rect.left) / scale - offsetX / scale;
@@ -124,7 +125,7 @@ function handlePointPlacement(event, clientX, clientY) {
     });
 
     if (existingPointIndex >= 0) {
-        matrix.splice(existingPointIndex, 1); // Eliminar sin confirmación
+        matrix.splice(existingPointIndex, 1);
     } else {
         matrix.push({ ring, angle: snapAngle, stitch: selectedStitch.value });
     }
@@ -133,6 +134,7 @@ function handlePointPlacement(event, clientX, clientY) {
     render();
 }
 
+// Exportación de la secuencia
 function exportSequence() {
     const sequence = matrix.map(point => 
         `${point.stitch} (anillo ${point.ring}, ángulo ${Math.round(point.angle * 180 / Math.PI)}°)`)
@@ -145,11 +147,12 @@ function exportSequence() {
     link.click();
 }
 
+// Actualización del indicador de zoom
 function updateZoomLabel() {
     zoomLevel.textContent = `Zoom: ${Math.round(scale * 100)}%`;
 }
 
-// Animación de zoom suave
+// Animación suave de zoom
 function animateZoom() {
     const diff = targetScale - scale;
     if (Math.abs(diff) > 0.01) {
@@ -162,7 +165,7 @@ function animateZoom() {
     }
 }
 
-// Eventos para escritorio
+// Eventos
 guideLinesInput.oninput = () => {
     const val = parseInt(guideLinesInput.value);
     guideLinesInput.value = Math.max(4, Math.min(24, val));
@@ -193,7 +196,6 @@ resetBtn.onclick = () => {
 
 exportBtn.onclick = exportSequence;
 
-// Eventos de mouse
 canvas.onclick = (e) => handlePointPlacement(e, e.clientX, e.clientY);
 canvas.onmousedown = (e) => {
     isDragging = true;
@@ -210,7 +212,6 @@ canvas.onmousemove = (e) => {
 canvas.onmouseup = () => isDragging = false;
 canvas.onmouseleave = () => isDragging = false;
 
-// Eventos táctiles
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     if (e.touches.length === 1) {
@@ -237,7 +238,6 @@ canvas.addEventListener('touchend', (e) => {
     isDragging = false;
 });
 
-// Eventos para teclado
 document.addEventListener('keydown', (e) => {
     if (e.key === '+') zoomInBtn.click();
     if (e.key === '-') zoomOutBtn.click();
