@@ -10,7 +10,7 @@ const stitchColors = {
     picot: '#1abc9c'
 };
 const RING_SPACING = 50;
-let canvasSize = Math.min(window.innerWidth * 0.8, 600);
+let canvasSize = 300; // Tamaño inicial pequeño
 let scale = 1;
 let targetScale = 1;
 let offsetX = 0;
@@ -18,42 +18,29 @@ let offsetY = 0;
 let isDragging = false;
 let dragStartX, dragStartY;
 let animationFrameId;
+let history = [[]];
+let historyIndex = 0;
 
 // Elementos del DOM
 const grid = document.getElementById('grid');
-const guideLinesInput = document.getElementById('guideLines');
-const selectedStitch = document.getElementById('stitch');
-const exportBtn = document.getElementById('exportBtn');
-const exportText = document.getElementById('exportText');
-const zoomInBtn = document.getElementById('zoomIn');
-const zoomOutBtn = document.getElementById('zoomOut');
-const resetBtn = document.getElementById('resetBtn');
-const zoomLevel = document.getElementById('zoomLevel');
-
-// Canvas persistente
-const canvas = document.createElement('canvas');
-canvas.width = canvasSize;
-canvas.height = canvasSize;
-grid.appendChild(canvas);
+const canvas = document.getElementById('patternCanvas');
 const ctx = canvas.getContext('2d');
-
-// Debounce para resize
-let resizeTimeout;
-window.addEventListener('resize', () => {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-        canvasSize = Math.min(window.innerWidth * 0.8, 600);
-        canvas.width = canvasSize;
-        canvas.height = canvasSize;
-        render();
-    }, 200);
-});
+const guideLinesInput = document.getElementById('guideLines');
+const stitchMenu = document.getElementById('stitchMenu');
+const exportText = document.getElementById('exportText');
+const fullscreenToolbar = document.getElementById('fullscreenToolbar');
+const newBtn = document.getElementById('newBtn');
+const saveBtn = document.getElementById('saveBtn');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+const saveFullBtn = document.getElementById('saveFullBtn');
+const exitFullscreenBtn = document.getElementById('exitFullscreenBtn');
 
 // Renderizado del canvas
 function render() {
-    ctx.clearRect(0, 0, canvasSize, canvasSize);
-    const centerX = canvasSize / 2 + offsetX;
-    const centerY = canvasSize / 2 + offsetY;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const centerX = canvas.width / 2 + offsetX;
+    const centerY = canvas.height / 2 + offsetY;
     const guideLines = Math.max(4, Math.min(24, parseInt(guideLinesInput.value) || 8));
     const maxRings = Math.max(4, Math.max(...matrix.map(p => p.ring + 1)) || 1);
 
@@ -63,41 +50,30 @@ function render() {
 
     // Fondo
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvasSize / scale, canvasSize / scale);
+    ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
 
     // Líneas guía
     ctx.strokeStyle = '#a0a0a0';
     ctx.lineWidth = 1 / scale;
     for (let i = 0; i < guideLines; i++) {
         const angle = (i / guideLines) * 2 * Math.PI;
-        const x = centerX + (canvasSize / 2 / scale) * Math.cos(angle);
-        const y = centerY + (canvasSize / 2 / scale) * Math.sin(angle);
+        const x = centerX + (canvas.width / 2 / scale) * Math.cos(angle);
+        const y = centerY + (canvas.height / 2 / scale) * Math.sin(angle);
         ctx.beginPath();
         ctx.moveTo(centerX, centerY);
         ctx.lineTo(x, y);
         ctx.stroke();
     }
 
-    // Anillos y puntos guía
+    // Anillos
     ctx.strokeStyle = '#c0c0c0';
-    ctx.fillStyle = '#d3d3d3';
     for (let r = 1; r <= maxRings; r++) {
         ctx.beginPath();
         ctx.arc(centerX, centerY, r * RING_SPACING, 0, 2 * Math.PI);
         ctx.stroke();
-
-        // Puntos guía en cada intersección
-        for (let i = 0; i < guideLines; i++) {
-            const angle = (i / guideLines) * 2 * Math.PI;
-            const x = centerX + r * RING_SPACING * Math.cos(angle);
-            const y = centerY + r * RING_SPACING * Math.sin(angle);
-            ctx.beginPath();
-            ctx.arc(x, y, 3 / scale, 0, 2 * Math.PI);
-            ctx.fill();
-        }
     }
 
-    // Puntos de crochet
+    // Puntos
     matrix.forEach(point => {
         const x = centerX + (point.ring * RING_SPACING) * Math.cos(point.angle);
         const y = centerY + (point.ring * RING_SPACING) * Math.sin(point.angle);
@@ -109,18 +85,17 @@ function render() {
     });
 
     ctx.restore();
-    updateZoomLabel();
 }
 
-// Manejo de clics para añadir o eliminar puntos con snap a puntos guía
+// Manejo de clics para añadir o eliminar puntos
 function handlePointPlacement(event, clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const x = (clientX - rect.left - offsetX) / scale;
     const y = (clientY - rect.top - offsetY) / scale;
-    const guideLines = Math.max(4, Math.min(24, parseInt(guideLinesInput.value) || 8));
+    const guideLines = parseInt(guideLinesInput.value) || 8;
 
-    const dx = x - canvasSize / 2;
-    const dy = y - canvasSize / 2;
+    const dx = x - canvas.width / 2;
+    const dy = y - canvas.height / 2;
     const distance = Math.sqrt(dx * dx + dy * dy);
     const ring = Math.round(distance / RING_SPACING);
 
@@ -130,23 +105,24 @@ function handlePointPlacement(event, clientX, clientY) {
     const segmentIndex = Math.round(angle / segmentSize);
     const snapAngle = segmentIndex * segmentSize;
 
-    // Ajustar a punto guía más cercano
-    const pointX = canvasSize / 2 + ring * RING_SPACING * Math.cos(snapAngle);
-    const pointY = canvasSize / 2 + ring * RING_SPACING * Math.sin(snapAngle);
+    const pointX = canvas.width / 2 + ring * RING_SPACING * Math.cos(snapAngle);
+    const pointY = canvas.height / 2 + ring * RING_SPACING * Math.sin(snapAngle);
     const tolerance = 15 / scale;
 
     const existingPointIndex = matrix.findIndex(point => {
-        const px = canvasSize / 2 + point.ring * RING_SPACING * Math.cos(point.angle);
-        const py = canvasSize / 2 + point.ring * RING_SPACING * Math.sin(point.angle);
+        const px = canvas.width / 2 + point.ring * RING_SPACING * Math.cos(point.angle);
+        const py = canvas.height / 2 + point.ring * RING_SPACING * Math.sin(point.angle);
         return Math.sqrt((pointX - px) ** 2 + (pointY - py) ** 2) < tolerance;
     });
 
     if (existingPointIndex >= 0) {
         matrix.splice(existingPointIndex, 1);
     } else {
-        matrix.push({ ring, angle: snapAngle, stitch: selectedStitch.value });
+        matrix.push({ ring, angle: snapAngle, stitch: stitchMenu.value });
     }
 
+    history.push([...matrix]);
+    historyIndex = history.length - 1;
     localStorage.setItem('crochetPattern', JSON.stringify(matrix));
     render();
 }
@@ -164,100 +140,64 @@ function exportSequence() {
     link.click();
 }
 
-// Actualización del indicador de zoom
-function updateZoomLabel() {
-    zoomLevel.textContent = `Zoom: ${Math.round(scale * 100)}%`;
-}
-
-// Animación suave de zoom
-function animateZoom() {
-    const diff = targetScale - scale;
-    if (Math.abs(diff) > 0.01) {
-        scale += diff * 0.1;
-        render();
-        animationFrameId = requestAnimationFrame(animateZoom);
-    } else {
-        scale = targetScale;
-        render();
-    }
-}
-
-// Eventos
-guideLinesInput.oninput = () => {
-    const val = parseInt(guideLinesInput.value);
-    guideLinesInput.value = Math.max(4, Math.min(24, val));
+// Eventos para pantalla completa
+grid.addEventListener('click', () => {
+    grid.classList.remove('grid-small');
+    grid.classList.add('grid-fullscreen');
+    fullscreenToolbar.classList.remove('hidden');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
     render();
-};
+});
 
-zoomInBtn.onclick = () => {
-    targetScale *= 1.2;
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
-    animateZoom();
-};
+exitFullscreenBtn.addEventListener('click', () => {
+    grid.classList.remove('grid-fullscreen');
+    grid.classList.add('grid-small');
+    fullscreenToolbar.classList.add('hidden');
+    canvas.width = 300;
+    canvas.height = 300;
+    render();
+});
 
-zoomOutBtn.onclick = () => {
-    targetScale = Math.max(0.5, targetScale / 1.2);
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
-    animateZoom();
-};
-
-resetBtn.onclick = () => {
+// Botones de acción
+newBtn.addEventListener('click', () => {
     matrix.length = 0;
+    history = [[]];
+    historyIndex = 0;
     offsetX = 0;
     offsetY = 0;
     scale = 1;
     targetScale = 1;
     localStorage.setItem('crochetPattern', JSON.stringify(matrix));
     render();
-};
-
-exportBtn.onclick = exportSequence;
-
-canvas.onclick = (e) => handlePointPlacement(e, e.clientX, e.clientY);
-canvas.onmousedown = (e) => {
-    isDragging = true;
-    dragStartX = e.clientX - offsetX;
-    dragStartY = e.clientY - offsetY;
-};
-canvas.onmousemove = (e) => {
-    if (isDragging) {
-        offsetX = e.clientX - dragStartX;
-        offsetY = e.clientY - dragStartY;
-        render();
-    }
-};
-canvas.onmouseup = () => isDragging = false;
-canvas.onmouseleave = () => isDragging = false;
-
-canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    if (e.touches.length === 1) {
-        const touch = e.touches[0];
-        handlePointPlacement(e, touch.clientX, touch.clientY);
-    } else if (e.touches.length === 2) {
-        isDragging = true;
-        dragStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - offsetX;
-        dragStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - offsetY;
-    }
 });
 
-canvas.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (e.touches.length === 2 && isDragging) {
-        offsetX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - dragStartX;
-        offsetY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - dragStartY;
+saveBtn.addEventListener('click', exportSequence);
+saveFullBtn.addEventListener('click', exportSequence);
+
+undoBtn.addEventListener('click', () => {
+    if (historyIndex > 0) {
+        historyIndex--;
+        matrix.splice(0, matrix.length, ...history[historyIndex]);
+        localStorage.setItem('crochetPattern', JSON.stringify(matrix));
         render();
     }
 });
 
-canvas.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    isDragging = false;
+redoBtn.addEventListener('click', () => {
+    if (historyIndex < history.length - 1) {
+        historyIndex++;
+        matrix.splice(0, matrix.length, ...history[historyIndex]);
+        localStorage.setItem('crochetPattern', JSON.stringify(matrix));
+        render();
+    }
 });
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === '+') zoomInBtn.click();
-    if (e.key === '-') zoomOutBtn.click();
+// Eventos de interacción con el canvas
+canvas.addEventListener('click', (e) => {
+    if (grid.classList.contains('grid-fullscreen')) {
+        handlePointPlacement(e, e.clientX, e.clientY);
+    }
 });
 
 // Inicialización
