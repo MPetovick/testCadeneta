@@ -17,40 +17,39 @@
     </nav>
 
     <main class="editor-container">
-        <div class="top-toolbar">
-            <div class="tool-section">
-                <button class="tool-btn" id="newBtn" title="Nuevo proyecto (N)">
-                    <i class="fas fa-file"></i>
-                </button>
-                <button class="tool-btn" id="saveBtn" title="Guardar proyecto (Ctrl+S)">
-                    <i class="fas fa-save"></i>
-                </button>
-                <button class="tool-btn" id="saveAsBtn" title="Guardar como...">
-                    <i class="fas fa-save"></i> +
-                </button>
-                <button class="tool-btn" id="undoBtn" title="Deshacer (Ctrl+Z)">
-                    <i class="fas fa-undo"></i>
-                </button>
-                <button class="tool-btn" id="redoBtn" title="Rehacer (Ctrl+Y)">
-                    <i class="fas fa-redo"></i>
-                </button>
-                <select id="loadProjects" title="Cargar proyecto guardado">
-                    <option value="">Cargar...</option>
-                </select>
-            </div>
-            <div class="tool-section stitch-section">
-                <span class="tool-label">Puntadas</span>
-                <button id="stitchHelpBtn" class="help-btn" title="Guía de símbolos">
-                    <i class="fas fa-question-circle"></i>
-                </button>
-                <div class="stitch-palette" id="stitchPalette">
-                    <!-- Los botones se generan dinámicamente en JS -->
-                </div>
-            </div>
-        </div>
-
         <div class="canvas-wrapper">
             <div id="grid" class="grid-view">
+                <div class="grid-header">
+                    <div class="tool-section">
+                        <button class="tool-btn" id="newBtn" title="Nuevo proyecto (N)">
+                            <i class="fas fa-file"></i>
+                        </button>
+                        <button class="tool-btn" id="saveBtn" title="Guardar proyecto (Ctrl+S)">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button class="tool-btn" id="saveAsBtn" title="Guardar como...">
+                            <i class="fas fa-save"></i> +
+                        </button>
+                        <button class="tool-btn" id="undoBtn" title="Deshacer (Ctrl+Z)">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        <button class="tool-btn" id="redoBtn" title="Rehacer (Ctrl+Y)">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <select id="loadProjects" title="Cargar proyecto guardado">
+                            <option value="">Cargar...</option>
+                        </select>
+                    </div>
+                    <div class="tool-section stitch-section">
+                        <span class="tool-label">Puntadas</span>
+                        <button id="stitchHelpBtn" class="help-btn" title="Guía de símbolos">
+                            <i class="fas fa-question-circle"></i>
+                        </button>
+                        <div class="stitch-palette" id="stitchPalette">
+                            <!-- Los botones se generan dinámicamente en JS -->
+                        </div>
+                    </div>
+                </div>
                 <canvas id="patternCanvas"></canvas>
                 <div class="zoom-controls">
                     <button id="zoomIn" title="Zoom In (+)"><i class="fas fa-search-plus"></i></button>
