@@ -3,7 +3,7 @@
     --secondary-color: #3498db;
     --background-color: #f8f9fa;
     --text-color: #2c3e50;
-    --toolbar-bg: #e0e0e0; /* Gris claro para la barra del grid */
+    --toolbar-bg: #ffffff;
     --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -48,28 +48,18 @@ body {
     padding-top: 60px; /* Espacio para la navbar fija */
 }
 
-.canvas-wrapper {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    margin-right: 80px; /* Espacio para la barra de configuración */
-}
-
-.grid-view {
-    position: relative;
-    width: 100%;
-    flex: 1;
-    overflow: hidden;
-    background: #fff;
-}
-
-.grid-header {
-    background-color: var(--toolbar-bg);
-    padding: 0.5rem 1rem;
+.top-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #ccc;
+    background-color: var(--toolbar-bg);
+    padding: 0.5rem 1rem;
+    box-shadow: var(--shadow);
+    position: fixed;
+    top: 60px; /* Debajo de la navbar */
+    left: 0;
+    right: 80px; /* Espacio para la barra de configuración */
+    z-index: 900;
 }
 
 .tool-section {
@@ -92,7 +82,7 @@ body {
 
 .tool-btn {
     padding: 0.5rem;
-    background: #fff;
+    background: var(--background-color);
     border: 1px solid var(--primary-color);
     border-radius: 6px;
     cursor: pointer;
@@ -140,7 +130,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s ease;
-    background: #fff;
+    background: var(--background-color);
 }
 
 .stitch-btn.active {
@@ -155,9 +145,25 @@ body {
     font-size: 0.9em;
 }
 
+.canvas-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    margin-top: 100px; /* Espacio para la barra superior */
+    margin-right: 80px; /* Espacio para la barra de configuración */
+}
+
+.grid-view {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    overflow: hidden;
+    background: #fff;
+}
+
 #patternCanvas {
     width: 100%;
-    height: calc(100% - 40px); /* Ajustar altura restando la barra gris */
+    height: 100%;
 }
 
 .zoom-controls {
@@ -175,7 +181,7 @@ body {
 .export-panel {
     background: var(--toolbar-bg);
     padding: 0.5rem 1rem;
-    border-top: 1px solid #ccc;
+    border-top: 1px solid #ddd;
 }
 
 .export-options {
@@ -186,7 +192,7 @@ body {
 
 .export-btn {
     padding: 0.5rem;
-    background: #fff;
+    background: var(--background-color);
     border: 1px solid var(--primary-color);
     border-radius: 6px;
     cursor: pointer;
@@ -200,7 +206,7 @@ body {
 
 .config-bar {
     position: fixed;
-    top: 60px;
+    top: 60px; /* Debajo de la navbar */
     right: 0;
     width: 80px;
     height: calc(100vh - 60px);
@@ -226,7 +232,7 @@ body {
 }
 
 .config-section input[type="range"] {
-    writing-mode: bt-lr;
+    writing-mode: bt-lr; /* Vertical */
     -webkit-appearance: slider-vertical;
     width: 8px;
     height: 100px;
