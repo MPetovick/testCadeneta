@@ -111,7 +111,7 @@ class CrochetEditor {
             }
         });
 
-        window.addEventListener('DOMContentLoaded', () => this.render()); // Asegurar render inicial
+        window.addEventListener('DOMContentLoaded', () => this.render());
         window.addEventListener('resize', () => this.resizeCanvas());
     }
 
@@ -222,15 +222,17 @@ class CrochetEditor {
 
     handleMouseMove(e) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left - this.canvas.width / 2 - this.state.offset.x) / this.state.scale;
-        const y = (e.clientY - rect.top - this.canvas.height / 2 - this.state.offset.y) / this.state.scale;
-        this.render(x, y);
+        // Convertir coordenadas del mouse al sistema del grid, ajustando por centro, offset y escala
+        const mouseX = (e.clientX - rect.left - this.state.offset.x - this.canvas.width / 2) / this.state.scale;
+        const mouseY = (e.clientY - rect.top - this.state.offset.y - this.canvas.height / 2) / this.state.scale;
+        this.render(mouseX, mouseY);
     }
 
     handleCanvasClick(e) {
         const rect = this.canvas.getBoundingClientRect();
-        const mouseX = (e.clientX - rect.left - this.canvas.width / 2 - this.state.offset.x) / this.state.scale;
-        const mouseY = (e.clientY - rect.top - this.canvas.height / 2 - this.state.offset.y) / this.state.scale;
+        // Corregir coordenadas ajustando por el centro real del canvas y el offset
+        const mouseX = (e.clientX - rect.left - this.state.offset.x - this.canvas.width / 2) / this.state.scale;
+        const mouseY = (e.clientY - rect.top - this.state.offset.y - this.canvas.height / 2) / this.state.scale;
 
         const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
         const ring = Math.round(distance / this.state.ringSpacing);
@@ -326,7 +328,7 @@ class CrochetEditor {
                     const x = Math.cos(angle) * (ring * this.state.ringSpacing);
                     const y = Math.sin(angle) * (ring * this.state.ringSpacing);
                     const stitch = this.STITCH_TYPES[this.state.selectedStitch];
-                    this.ctx.fillStyle = stitch.color + '80'; // Restaurar efecto claro
+                    this.ctx.fillStyle = stitch.color + '80'; // Efecto claro restaurado
                     this.ctx.fillText(stitch.symbol, x, y);
                 }
             }
