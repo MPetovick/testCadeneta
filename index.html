@@ -14,62 +14,42 @@
             <i class="fas fa-crop-alt"></i>
             <h1>Cadeneta ePatch</h1>
         </div>
-        <div class="navbar-tools">
-            <!-- Sin botones adicionales -->
-        </div>
     </nav>
 
     <main class="editor-container">
-        <aside class="toolbar">
+        <div class="top-toolbar">
             <div class="tool-section">
-                <h3>Herramientas</h3>
-                <div class="tool-grid">
-                    <button class="tool-btn" id="newBtn" title="Nuevo proyecto (N)">
-                        <i class="fas fa-file"></i>
-                    </button>
-                    <button class="tool-btn" id="saveBtn" title="Guardar proyecto (Ctrl+S)">
-                        <i class="fas fa-save"></i>
-                    </button>
-                    <button class="tool-btn" id="saveAsBtn" title="Guardar como...">
-                        <i class="fas fa-save"></i> +
-                    </button>
-                    <button class="tool-btn" id="undoBtn" title="Deshacer (Ctrl+Z)">
-                        <i class="fas fa-undo"></i>
-                    </button>
-                    <button class="tool-btn" id="redoBtn" title="Rehacer (Ctrl+Y)">
-                        <i class="fas fa-redo"></i>
-                    </button>
-                </div>
-                <div class="project-controls">
-                    <select id="loadProjects" title="Cargar proyecto guardado">
-                        <option value="">Cargar proyecto...</option>
-                    </select>
-                </div>
+                <button class="tool-btn" id="newBtn" title="Nuevo proyecto (N)">
+                    <i class="fas fa-file"></i>
+                </button>
+                <button class="tool-btn" id="saveBtn" title="Guardar proyecto (Ctrl+S)">
+                    <i class="fas fa-save"></i>
+                </button>
+                <button class="tool-btn" id="saveAsBtn" title="Guardar como...">
+                    <i class="fas fa-save"></i> +
+                </button>
+                <button class="tool-btn" id="undoBtn" title="Deshacer (Ctrl+Z)">
+                    <i class="fas fa-undo"></i>
+                </button>
+                <button class="tool-btn" id="redoBtn" title="Rehacer (Ctrl+Y)">
+                    <i class="fas fa-redo"></i>
+                </button>
+                <select id="loadProjects" title="Cargar proyecto guardado">
+                    <option value="">Cargar...</option>
+                </select>
             </div>
-
-            <div class="tool-section">
-                <h3>Puntadas <button id="stitchHelpBtn" class="help-btn"><i class="fas fa-question-circle"></i></button></h3>
+            <div class="tool-section stitch-section">
+                <span class="tool-label">Puntadas</span>
+                <button id="stitchHelpBtn" class="help-btn" title="Guía de símbolos">
+                    <i class="fas fa-question-circle"></i>
+                </button>
                 <div class="stitch-palette" id="stitchPalette">
                     <!-- Los botones se generan dinámicamente en JS -->
                 </div>
             </div>
+        </div>
 
-            <div class="tool-section">
-                <h3>Configuración</h3>
-                <div class="form-group">
-                    <label for="guideLines"><i class="fas fa-drafting-compass"></i> Divisiones Iniciales:</label>
-                    <input type="range" id="guideLines" min="4" max="24" value="8">
-                    <span id="guideLinesValue">8</span>
-                </div>
-                <div class="form-group">
-                    <label for="ringSpacing"><i class="fas fa-circle-notch"></i> Espaciado:</label>
-                    <input type="range" id="ringSpacing" min="30" max="80" value="50">
-                    <span id="ringSpacingValue">50px</span>
-                </div>
-            </div>
-        </aside>
-
-        <div class="canvas-container">
+        <div class="canvas-wrapper">
             <div id="grid" class="grid-view">
                 <canvas id="patternCanvas"></canvas>
                 <div class="zoom-controls">
@@ -78,14 +58,24 @@
                     <button id="resetView"><i class="fas fa-expand-arrows-alt"></i></button>
                 </div>
             </div>
-            
             <div class="export-panel">
                 <div class="export-options">
-                    <button class="export-btn" id="exportTxt"><i class="fas fa-file-alt"></i> TXT</button>
-                    <button class="export-btn" id="exportPng"><i class="fas fa-image"></i> PNG</button>
-                    <button class="export-btn" id="exportPdf"><i class="fas fa-file-pdf"></i> PDF</button>
+                    <button class="export-btn" id="exportTxt" title="Exportar como TXT"><i class="fas fa-file-alt"></i></button>
+                    <button class="export-btn" id="exportPng" title="Exportar como PNG"><i class="fas fa-image"></i></button>
+                    <button class="export-btn" id="exportPdf" title="Exportar como PDF"><i class="fas fa-file-pdf"></i></button>
                 </div>
                 <textarea id="exportText" placeholder="Vista previa del patrón..." readonly></textarea>
+            </div>
+        </div>
+
+        <div class="config-bar">
+            <div class="config-section">
+                <label for="guideLines" title="Divisiones Iniciales"><i class="fas fa-drafting-compass"></i></label>
+                <input type="range" id="guideLines" min="4" max="24" value="8">
+                <span id="guideLinesValue">8</span>
+                <label for="ringSpacing" title="Espaciado de Anillos"><i class="fas fa-circle-notch"></i></label>
+                <input type="range" id="ringSpacing" min="30" max="80" value="50">
+                <span id="ringSpacingValue">50px</span>
             </div>
         </div>
     </main>
