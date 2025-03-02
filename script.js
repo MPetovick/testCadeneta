@@ -1,9 +1,8 @@
 class CrochetEditor {
     constructor() {
-        this.canvas = document.getElementById('patternCanvas');
-        this.ctx = this.canvas.getContext('2d');
         this.initConstants();
-        this.resizeCanvas();
+        this.initCanvas();
+        this.initState();
         this.initEventListeners();
         this.initStitchPalette();
         this.loadProjects();
@@ -23,7 +22,7 @@ class CrochetEditor {
             picot: { symbol: '¤', color: '#1abc9c', desc: 'Picot decorativo' }
         };
 
-        this.state = {
+        this.DEFAULT_STATE = {
             rings: [{ segments: 8, points: [] }],
             history: [[]],
             historyIndex: 0,
@@ -38,8 +37,16 @@ class CrochetEditor {
             lastPos: { x: 0, y: 0 },
             pinchDistance: null
         };
+    }
 
-        this.debounceRender = this.debounce(this.render.bind(this), 16);
+    initCanvas() {
+        this.canvas = document.getElementById('patternCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.resizeCanvas();
+    }
+
+    initState() {
+        this.state = { ...this.DEFAULT_STATE };
     }
 
     resizeCanvas() {
@@ -49,110 +56,146 @@ class CrochetEditor {
     }
 
     initEventListeners() {
-        this.canvas.addEventListener('click', this.handleCanvasClick.bind(this));
-        this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
-        this.canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
-        this.canvas.addEventListener('mousedown', this.startDrag.bind(this));
-        document.addEventListener('mousemove', this.debounce(this.handleDrag.bind(this), 16));
-        document.addEventListener('mouseup', this.endDrag.bind(this));
+        const events = [
+            { element: this.canvas, event: 'click', handler: this.handleCanvasClick.bind(this) },
+            { element: this.canvas, event: 'mousemove', handler: this.handleMouseMove.bind(this) },
+            { element: this.canvas, event: 'wheel', handler: this.handleWheel.bind(this), options: { passive: false } },
+            { element: this.canvas, event: 'mousedown', handler: this.startDrag.bind(this) },
+            { element: document, event: 'mousemove', handler: this.debounce(this.handleDrag.bind(this), 16) },
+            { element: document, event: 'mouseup', handler: this.endDrag.bind(this) },
+            { element: this.canvas, event: 'touchstart', handler: this.handleTouchStart.bind(this), options: { passive: false } },
+            { element: this.canvas, event: 'touchmove', handler: this.debounce(this.handleTouchMove.bind(this), 16), options: { passive: false } },
+            { element: this.canvas, event: 'touchend', handler: this.handleTouchEnd.bind(this) },
+            { element: this.canvas, event: 'touchcancel', handler: this.endDrag.bind(this) },
+            { element: document, event: 'keydown', handler: this.handleKeyDown.bind(this) },
+            { element: window, event: 'resize', handler: this.resizeCanvas.bind(this) }
+        ];
 
-        this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-        this.canvas.addEventListener('touchmove', this.debounce(this.handleTouchMove.bind(this), 16), { passive: false });
-        this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this));
-        this.canvas.addEventListener('touchcancel', this.endDrag.bind(this));
-
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey) {
-                switch (e.key) {
-                    case 'z': this.undo(); break;
-                    case 'y': this.redo(); break;
-                    case 's': e.preventDefault(); this.saveProject(); break;
-                }
-            } else {
-                switch (e.key) {
-                    case 'n': this.newProject(); break;
-                    case '+': this.adjustZoom(0.2); break;
-                    case '-': this.adjustZoom(-0.2); break;
-                }
-            }
+        events.forEach(({ element, event, handler, options }) => {
+            element.addEventListener(event, handler, options);
         });
 
-        document.getElementById('newBtn').addEventListener('click', this.newProject.bind(this));
-        document.getElementById('saveBtn').addEventListener('click', this.saveProject.bind(this));
-        document.getElementById('saveAsBtn').addEventListener('click', this.saveProjectAs.bind(this));
-        document.getElementById('undoBtn').addEventListener('click', this.undo.bind(this));
-        document.getElementById('redoBtn').addEventListener('click', this.redo.bind(this));
+        this.initButtonEventListeners();
+    }
 
+    initButtonEventListeners() {
+        const buttons = [
+            { id: 'newBtn', handler: this.newProject.bind(this) },
+            { id: 'saveBtn', handler: this.saveProject.bind(this) },
+            { id: 'saveAsBtn', handler: this.saveProjectAs.bind(this) },
+            { id: 'undoBtn', handler: this.undo.bind(this) },
+            { id: 'redoBtn', handler: this.redo.bind(this) },
+            { id: 'zoomIn', handler: () => this.adjustZoom(0.2) },
+            { id: 'zoomOut', handler: () => this.adjustZoom(-0.2) },
+            { id: 'resetView', handler: this.resetView.bind(this) },
+            { id: 'stitchHelpBtn', handler: (e) => this.toggleStitchTooltip(e) },
+            { id: 'exportTxt', handler: this.exportAsText.bind(this) },
+            { id: 'exportPng', handler: this.exportAsImage.bind(this) },
+            { id: 'exportPdf', handler: this.generatePDF.bind(this) }
+        ];
+
+        buttons.forEach(({ id, handler }) => {
+            const button = document.getElementById(id);
+            if (button) button.addEventListener('click', handler);
+        });
+
+        this.initInputEventListeners();
+    }
+
+    initInputEventListeners() {
         const guideLines = document.getElementById('guideLines');
-        guideLines.addEventListener('input', () => {
-            this.state.guideLines = parseInt(guideLines.value);
-            this.state.rings[0].segments = this.state.guideLines;
-            this.state.rings[0].points = Array(this.state.guideLines).fill('cadeneta');
-            document.getElementById('guideLinesValue').textContent = this.state.guideLines;
-            this.render();
-        });
+        if (guideLines) {
+            guideLines.addEventListener('input', () => {
+                this.state.guideLines = parseInt(guideLines.value);
+                this.state.rings[0].segments = this.state.guideLines;
+                this.state.rings[0].points = Array(this.state.guideLines).fill('cadeneta');
+                document.getElementById('guideLinesValue').textContent = this.state.guideLines;
+                this.render();
+            });
+        }
 
         const ringSpacing = document.getElementById('ringSpacing');
-        ringSpacing.addEventListener('input', () => {
-            this.state.ringSpacing = parseInt(ringSpacing.value);
-            document.getElementById('ringSpacingValue').textContent = `${this.state.ringSpacing}px`;
-            this.render();
-        });
-
-        document.getElementById('zoomIn').addEventListener('click', () => this.adjustZoom(0.2));
-        document.getElementById('zoomOut').addEventListener('click', () => this.adjustZoom(-0.2));
-        document.getElementById('resetView').addEventListener('click', this.resetView.bind(this));
-
-        const helpBtn = document.getElementById('stitchHelpBtn');
-        helpBtn.addEventListener('click', (e) => this.toggleStitchTooltip(e));
-
-        document.addEventListener('click', (e) => {
-            const tooltip = document.getElementById('stitchTooltip');
-            if (!helpBtn.contains(e.target) && !tooltip.contains(e.target)) {
-                tooltip.classList.add('hidden');
-            }
-        });
-
-        window.addEventListener('DOMContentLoaded', () => this.render());
-        window.addEventListener('resize', () => this.resizeCanvas());
-    }
-
-    initStitchPalette() {
-        const palette = document.getElementById('stitchPalette');
-        if (!palette) {
-            console.error('El elemento #stitchPalette no se encontró en el DOM');
-            return;
-        }
-        palette.innerHTML = '';
-        Object.entries(this.STITCH_TYPES).forEach(([key, stitch]) => {
-            const btn = document.createElement('button');
-            btn.className = 'stitch-btn';
-            btn.innerHTML = stitch.symbol;
-            btn.style.color = stitch.color;
-            btn.title = stitch.desc;
-            btn.addEventListener('click', () => {
-                this.state.selectedStitch = key;
-                palette.querySelectorAll('.stitch-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
+        if (ringSpacing) {
+            ringSpacing.addEventListener('input', () => {
+                this.state.ringSpacing = parseInt(ringSpacing.value);
+                document.getElementById('ringSpacingValue').textContent = `${this.state.ringSpacing}px`;
+                this.render();
             });
-            palette.appendChild(btn);
-        });
-        const firstBtn = palette.querySelector('.stitch-btn');
-        if (firstBtn) firstBtn.classList.add('active');
+        }
     }
 
-    initExportButtons() {
-        document.getElementById('exportTxt').addEventListener('click', this.exportAsText.bind(this));
-        document.getElementById('exportPng').addEventListener('click', this.exportAsImage.bind(this));
-        document.getElementById('exportPdf').addEventListener('click', this.generatePDF.bind(this));
+    handleKeyDown(e) {
+        if (e.ctrlKey) {
+            switch (e.key) {
+                case 'z': this.undo(); break;
+                case 'y': this.redo(); break;
+                case 's': e.preventDefault(); this.saveProject(); break;
+            }
+        } else {
+            switch (e.key) {
+                case 'n': this.newProject(); break;
+                case '+': this.adjustZoom(0.2); break;
+                case '-': this.adjustZoom(-0.2); break;
+            }
+        }
     }
 
-    debounce(func, wait) {
-        let timeout;
-        return (...args) => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
+    handleCanvasClick(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left - this.state.offset.x - this.canvas.width / 2) / this.state.scale;
+        const mouseY = (e.clientY - rect.top - this.state.offset.y - this.canvas.height / 2) / this.state.scale;
+
+        const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+        const ring = Math.round(distance / this.state.ringSpacing) - 1;
+        if (ring >= 0 && ring < this.state.rings.length) {
+            const segments = this.state.rings[ring].segments;
+            const angleStep = Math.PI * 2 / segments;
+            const angle = Math.atan2(mouseY, mouseX) + Math.PI * 2;
+            const segment = Math.round((angle / (Math.PI * 2)) * segments) % segments;
+
+            if (e.shiftKey) {
+                this.increasePoints(ring, segment);
+            } else if (e.ctrlKey) {
+                this.decreasePoints(ring, segment);
+            } else {
+                this.state.rings[ring].points[segment] = this.state.selectedStitch;
+            }
+            this.saveState();
+            this.render();
+        }
+    }
+
+    increasePoints(ringIndex, segmentIndex) {
+        const nextRingIndex = ringIndex + 1;
+        if (nextRingIndex >= this.state.rings.length) {
+            const prevSegments = this.state.rings[ringIndex].segments;
+            this.state.rings.push({ segments: prevSegments, points: [] });
+        }
+
+        const nextRing = this.state.rings[nextRingIndex];
+        nextRing.segments += 1;
+        nextRing.points.splice(segmentIndex + 1, 0, this.state.selectedStitch);
+    }
+
+    decreasePoints(ringIndex, segmentIndex) {
+        if (ringIndex > 0 && this.state.rings[ringIndex].segments > this.state.guideLines) {
+            const currentRing = this.state.rings[ringIndex];
+            currentRing.segments -= 1;
+            currentRing.points.splice(segmentIndex, 1);
+        }
+    }
+
+    handleMouseMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left - this.state.offset.x - this.canvas.width / 2) / this.state.scale;
+        const mouseY = (e.clientY - rect.top - this.state.offset.y - this.canvas.height / 2) / this.state.scale;
+        this.render(mouseX, mouseY);
+    }
+
+    handleWheel(e) {
+        e.preventDefault();
+        const zoom = e.deltaY > 0 ? -0.1 : 0.1;
+        this.adjustZoom(zoom);
     }
 
     startDrag(e) {
@@ -174,12 +217,6 @@ class CrochetEditor {
         this.state.isDragging = false;
         this.state.offset.x = this.state.targetOffset.x;
         this.state.offset.y = this.state.targetOffset.y;
-    }
-
-    handleWheel(e) {
-        e.preventDefault();
-        const zoom = e.deltaY > 0 ? -0.1 : 0.1;
-        this.adjustZoom(zoom);
     }
 
     handleTouchStart(e) {
@@ -221,58 +258,6 @@ class CrochetEditor {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-    handleMouseMove(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = (e.clientX - rect.left - this.state.offset.x - this.canvas.width / 2) / this.state.scale;
-        const mouseY = (e.clientY - rect.top - this.state.offset.y - this.canvas.height / 2) / this.state.scale;
-        this.render(mouseX, mouseY);
-    }
-
-    handleCanvasClick(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = (e.clientX - rect.left - this.state.offset.x - this.canvas.width / 2) / this.state.scale;
-        const mouseY = (e.clientY - rect.top - this.state.offset.y - this.canvas.height / 2) / this.state.scale;
-
-        const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
-        const ring = Math.round(distance / this.state.ringSpacing) - 1;
-        if (ring >= 0 && ring < this.state.rings.length) {
-            const segments = this.state.rings[ring].segments;
-            const angleStep = Math.PI * 2 / segments;
-            const angle = Math.atan2(mouseY, mouseX) + Math.PI * 2;
-            const segment = Math.round((angle / (Math.PI * 2)) * segments) % segments;
-
-            if (e.shiftKey) { // Shift + clic: Aumentar puntos
-                this.increasePoints(ring, segment);
-            } else if (e.ctrlKey) { // Ctrl + clic: Disminuir puntos
-                this.decreasePoints(ring, segment);
-            } else { // Clic normal: Cambiar tipo de puntada
-                this.state.rings[ring].points[segment] = this.state.selectedStitch;
-            }
-            this.saveState();
-            this.render();
-        }
-    }
-
-    increasePoints(ringIndex, segmentIndex) {
-        const nextRingIndex = ringIndex + 1;
-        if (nextRingIndex >= this.state.rings.length) {
-            const prevSegments = this.state.rings[ringIndex].segments;
-            this.state.rings.push({ segments: prevSegments, points: [] });
-        }
-
-        const nextRing = this.state.rings[nextRingIndex];
-        nextRing.segments += 1;
-        nextRing.points.splice(segmentIndex + 1, 0, this.state.selectedStitch);
-    }
-
-    decreasePoints(ringIndex, segmentIndex) {
-        if (ringIndex > 0 && this.state.rings[ringIndex].segments > this.state.guideLines) {
-            const currentRing = this.state.rings[ringIndex];
-            currentRing.segments -= 1;
-            currentRing.points.splice(segmentIndex, 1);
-        }
-    }
-
     render(mouseX = null, mouseY = null) {
         requestAnimationFrame(() => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -288,80 +273,96 @@ class CrochetEditor {
             this.ctx.translate(centerX + this.state.offset.x, centerY + this.state.offset.y);
             this.ctx.scale(this.state.scale, this.state.scale);
 
-            this.ctx.strokeStyle = '#ddd';
-            this.ctx.lineWidth = 1 / this.state.scale;
-            for (let r = 0; r < this.state.rings.length; r++) {
-                this.ctx.beginPath();
-                this.ctx.arc(0, 0, (r + 1) * this.state.ringSpacing, 0, Math.PI * 2);
-                this.ctx.stroke();
-
-                const segments = this.state.rings[r].segments;
-                const angleStep = Math.PI * 2 / segments;
-                this.ctx.strokeStyle = '#eee';
-                this.ctx.beginPath();
-                for (let i = 0; i < segments; i++) {
-                    const angle = i * angleStep;
-                    const cosAngle = Math.cos(angle);
-                    const sinAngle = Math.sin(angle);
-                    this.ctx.moveTo(0, 0);
-                    this.ctx.lineTo(cosAngle * this.state.rings.length * this.state.ringSpacing, sinAngle * this.state.rings.length * this.state.ringSpacing);
-                }
-                this.ctx.stroke();
-
-                // Dibujar círculos negros en intersecciones disponibles
-                this.ctx.fillStyle = '#000';
-                for (let i = 0; i < segments; i++) {
-                    const angle = i * angleStep;
-                    const x = Math.cos(angle) * (r + 1) * this.state.ringSpacing;
-                    const y = Math.sin(angle) * (r + 1) * this.state.ringSpacing;
-                    if (!this.state.rings[r].points[i]) { // Solo si no hay punto
-                        this.ctx.beginPath();
-                        this.ctx.arc(x, y, 2 / this.state.scale, 0, Math.PI * 2);
-                        this.ctx.fill();
-                    }
-                }
-            }
-
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.font = `${20 / this.state.scale}px Arial`;
-            this.state.rings.forEach((ring, ringIndex) => {
-                const segments = ring.segments;
-                const angleStep = Math.PI * 2 / segments;
-                ring.points.forEach((type, segmentIndex) => {
-                    const angle = segmentIndex * angleStep;
-                    const x = Math.cos(angle) * (ringIndex + 1) * this.state.ringSpacing;
-                    const y = Math.sin(angle) * (ringIndex + 1) * this.state.ringSpacing;
-                    const stitch = this.STITCH_TYPES[type];
-                    this.ctx.fillStyle = stitch.color;
-                    this.ctx.fillText(stitch.symbol, x, y);
-                });
-            });
-
-            if (mouseX !== null && mouseY !== null) {
-                const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
-                const ring = Math.round(distance / this.state.ringSpacing) - 1;
-                if (ring >= 0 && ring < this.state.rings.length) {
-                    const segments = this.state.rings[ring].segments;
-                    const angleStep = Math.PI * 2 / segments;
-                    const angle = Math.atan2(mouseY, mouseX) + Math.PI * 2;
-                    const segment = Math.round((angle / (Math.PI * 2)) * segments) % segments;
-
-                    const x = Math.cos(segment * angleStep) * (ring + 1) * this.state.ringSpacing;
-                    const y = Math.sin(segment * angleStep) * (ring + 1) * this.state.ringSpacing;
-                    const stitch = this.STITCH_TYPES[this.state.selectedStitch];
-                    this.ctx.fillStyle = stitch.color + '80';
-                    this.ctx.fillText(stitch.symbol, x, y);
-                }
-            }
+            this.drawRings();
+            this.drawStitches();
+            this.drawHoverEffect(mouseX, mouseY);
 
             this.ctx.restore();
 
-            document.getElementById('undoBtn').disabled = this.state.historyIndex === 0;
-            document.getElementById('redoBtn').disabled = this.state.historyIndex === this.state.history.length - 1;
-
-            this.updateExportPreview();
+            this.updateUI();
         });
+    }
+
+    drawRings() {
+        this.ctx.strokeStyle = '#ddd';
+        this.ctx.lineWidth = 1 / this.state.scale;
+        for (let r = 0; r < this.state.rings.length; r++) {
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, (r + 1) * this.state.ringSpacing, 0, Math.PI * 2);
+            this.ctx.stroke();
+
+            const segments = this.state.rings[r].segments;
+            const angleStep = Math.PI * 2 / segments;
+            this.ctx.strokeStyle = '#eee';
+            this.ctx.beginPath();
+            for (let i = 0; i < segments; i++) {
+                const angle = i * angleStep;
+                const cosAngle = Math.cos(angle);
+                const sinAngle = Math.sin(angle);
+                this.ctx.moveTo(0, 0);
+                this.ctx.lineTo(cosAngle * this.state.rings.length * this.state.ringSpacing, sinAngle * this.state.rings.length * this.state.ringSpacing);
+            }
+            this.ctx.stroke();
+
+            this.drawIntersectionPoints(r, segments, angleStep);
+        }
+    }
+
+    drawIntersectionPoints(ringIndex, segments, angleStep) {
+        this.ctx.fillStyle = '#000';
+        for (let i = 0; i < segments; i++) {
+            const angle = i * angleStep;
+            const x = Math.cos(angle) * (ringIndex + 1) * this.state.ringSpacing;
+            const y = Math.sin(angle) * (ringIndex + 1) * this.state.ringSpacing;
+            if (!this.state.rings[ringIndex].points[i]) {
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, 2 / this.state.scale, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+        }
+    }
+
+    drawStitches() {
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.font = `${20 / this.state.scale}px Arial`;
+        this.state.rings.forEach((ring, ringIndex) => {
+            const segments = ring.segments;
+            const angleStep = Math.PI * 2 / segments;
+            ring.points.forEach((type, segmentIndex) => {
+                const angle = segmentIndex * angleStep;
+                const x = Math.cos(angle) * (ringIndex + 1) * this.state.ringSpacing;
+                const y = Math.sin(angle) * (ringIndex + 1) * this.state.ringSpacing;
+                const stitch = this.STITCH_TYPES[type];
+                this.ctx.fillStyle = stitch.color;
+                this.ctx.fillText(stitch.symbol, x, y);
+            });
+        });
+    }
+
+    drawHoverEffect(mouseX, mouseY) {
+        if (mouseX !== null && mouseY !== null) {
+            const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+            const ring = Math.round(distance / this.state.ringSpacing) - 1;
+            if (ring >= 0 && ring < this.state.rings.length) {
+                const segments = this.state.rings[ring].segments;
+                const angleStep = Math.PI * 2 / segments;
+                const angle = Math.atan2(mouseY, mouseX) + Math.PI * 2;
+                const segment = Math.round((angle / (Math.PI * 2)) * segments) % segments;
+
+                const x = Math.cos(segment * angleStep) * (ring + 1) * this.state.ringSpacing;
+                const y = Math.sin(segment * angleStep) * (ring + 1) * this.state.ringSpacing;
+                const stitch = this.STITCH_TYPES[this.state.selectedStitch];
+                this.ctx.fillStyle = stitch.color + '80';
+                this.ctx.fillText(stitch.symbol, x, y);
+            }
+        }
+    }
+
+    updateUI() {
+        document.getElementById('undoBtn').disabled = this.state.historyIndex === 0;
+        document.getElementById('redoBtn').disabled = this.state.historyIndex === this.state.history.length - 1;
+        this.updateExportPreview();
     }
 
     animate() {
@@ -568,6 +569,44 @@ class CrochetEditor {
         } else {
             tooltip.classList.add('hidden');
         }
+    }
+
+    initStitchPalette() {
+        const palette = document.getElementById('stitchPalette');
+        if (!palette) {
+            console.error('El elemento #stitchPalette no se encontró en el DOM');
+            return;
+        }
+        palette.innerHTML = '';
+        Object.entries(this.STITCH_TYPES).forEach(([key, stitch]) => {
+            const btn = document.createElement('button');
+            btn.className = 'stitch-btn';
+            btn.innerHTML = stitch.symbol;
+            btn.style.color = stitch.color;
+            btn.title = stitch.desc;
+            btn.addEventListener('click', () => {
+                this.state.selectedStitch = key;
+                palette.querySelectorAll('.stitch-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+            palette.appendChild(btn);
+        });
+        const firstBtn = palette.querySelector('.stitch-btn');
+        if (firstBtn) firstBtn.classList.add('active');
+    }
+
+    initExportButtons() {
+        document.getElementById('exportTxt').addEventListener('click', this.exportAsText.bind(this));
+        document.getElementById('exportPng').addEventListener('click', this.exportAsImage.bind(this));
+        document.getElementById('exportPdf').addEventListener('click', this.generatePDF.bind(this));
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
     }
 }
 
