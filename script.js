@@ -10,7 +10,7 @@ const STITCH_TYPES = new Map([
 ]);
 
 const DEFAULT_STATE = {
-    rings: [{ segments: 8, points: Array(8).fill('cadeneta') }],
+    rings: [{ segments: 8, points: Array(8).fill('') }],
     history: [],
     historyIndex: 0,
     scale: 1,
@@ -34,7 +34,7 @@ class PatternState {
 
     reset() {
         this.state = { ...DEFAULT_STATE };
-        this.state.rings[0].points = Array(this.state.guideLines).fill('cadeneta');
+        this.state.rings[0].points = Array(this.state.guideLines).fill('');
         this.state.history = [this.cloneRings()];
         this.state.historyIndex = 0;
     }
@@ -82,7 +82,7 @@ class PatternState {
     updateGuideLines(value) {
         this.state.guideLines = value;
         this.state.rings[0].segments = value;
-        this.state.rings[0].points = Array(value).fill('cadeneta');
+        this.state.rings[0].points = Array(value).fill('');
     }
 
     updateRingSpacing(value) {
