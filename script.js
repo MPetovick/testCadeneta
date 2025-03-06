@@ -97,7 +97,7 @@ class PatternState {
             // Crear el siguiente anillo con el doble de puntos
             this.state.rings.push({
                 segments: currentRing.segments * 2,
-                points: Array(currentRing.segments * 2).fill(stitch)
+                points: Array(currentRing.segments * 2).fill('')
             });
         } else {
             // Si ya existe el siguiente anillo, duplicar sus puntos
