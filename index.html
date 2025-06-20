@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div class="container">
@@ -248,13 +249,13 @@
                 </div>
                 
                 <div class="qr-actions">
-                    <button id="copy-btn" class="btn-secondary">
-                        <i class="fas fa-copy"></i> Copy QR
+                    <button id="share-btn" class="btn-primary">
+                        <i class="fas fa-share-alt"></i> Share
                     </button>
                     <button id="download-btn" class="btn-secondary">
                         <i class="fas fa-download"></i> Download PNG
                     </button>
-                    <button id="pdf-btn" class="btn-primary">
+                    <button id="pdf-btn" class="btn-secondary">
                         <i class="fas fa-file-pdf"></i> Export PDF
                     </button>
                 </div>
@@ -281,8 +282,6 @@
         <p>No data leaves your device. All processing occurs locally.</p>
     </footer>
     
-    <!-- Telegram Web App SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
