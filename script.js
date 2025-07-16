@@ -1,29 +1,60 @@
-// Variables globales
+// Variables globales mejoradas
 let priceChart = null;
 let currentTimeframe = '30';
 let historicalData = [];
 let predictedPrice = null;
 let currentPrice = null;
 let currentPriceTimestamp = null;
-let predictionHistory = JSON.parse(localStorage.getItem('predictionHistory')) || [];
+let predictionHistory = JSON.parse(localStorage.getItem('goldenPredictorHistory')) || [];
 const goldenRatio = 1.618;
+const maxHistorySize = 50;
+const retryCount = 3;
+const retryDelay = 1500;
+
+// Función para mostrar notificaciones
+function showNotification(message, type = 'info', duration = 5000) {
+    const notification = document.getElementById('notification');
+    const messageElement = document.getElementById('notification-message');
+    
+    notification.className = 'notification show ' + type;
+    messageElement.textContent = message;
+    
+    // Configurar cierre automático
+    setTimeout(() => {
+        notification.classList.remove('show');
+    }, duration);
+    
+    // Configurar botón de cierre
+    document.querySelector('.close-btn').onclick = () => {
+        notification.classList.remove('show');
+    };
+}
 
 // Función para reintentar solicitudes
-async function retryRequest(fn, maxRetries = 3, delay = 1000) {
+async function retryRequest(fn, maxRetries = retryCount, delay = retryDelay) {
     for (let i = 0; i < maxRetries; i++) {
         try {
             return await fn();
         } catch (error) {
             if (i === maxRetries - 1) throw error;
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+            showNotification(`Reintentando... (${i+1}/${maxRetries})`, 'info', 2000);
         }
     }
 }
 
 // Configuración inicial
 document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar notificación
+    document.getElementById('notification').style.display = 'block';
+    
+    // Inicializar botones de timeframe
     initTimeframeButtons();
+    
+    // Cargar datos iniciales
     loadData();
+    
+    // Configurar actualización periódica
     setInterval(loadData, 300000); // Actualizar cada 5 minutos
 });
 
@@ -39,12 +70,6 @@ function initTimeframeButtons() {
             loadData();
         });
     });
-    // Asegurar que 30D esté activo al cargar
-    buttons.forEach(btn => {
-        if (btn.dataset.timeframe === '30') {
-            btn.classList.add('active');
-        }
-    });
 }
 
 // Cargar todos los datos
@@ -53,32 +78,50 @@ async function loadData() {
     loadingOverlay.classList.add('active');
 
     try {
+        // Obtener precio actual
         const change24h = await retryRequest(fetchCurrentPrice);
+        
+        // Obtener datos históricos
         await retryRequest(fetchHistoricalData);
-        updatePredictionDetails(change24h);
+        
+        // Calcular y actualizar predicción
+        predictedPrice = calculatePrediction(change24h);
+        
+        // Actualizar UI
+        updatePredictionDetails();
+        
+        // Inicializar gráfico
         initChart();
+        
+        // Mostrar notificación de éxito
+        showNotification('Datos actualizados con éxito', 'success', 3000);
+        
     } catch (error) {
         console.error('Error loading data:', error);
-        alert(`Error al cargar datos para ${currentTimeframe}D. Verifique su conexión o intente de nuevo.`);
+        showNotification(`Error al cargar datos: ${error.message}`, 'error', 5000);
     } finally {
         loadingOverlay.classList.remove('active');
     }
 }
 
-// Obtener precio actual
+// Obtener precio actual (CryptoCompare)
 async function fetchCurrentPrice() {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const response = await fetch('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC&tsyms=USD');
+        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
         
         const data = await response.json();
-        currentPrice = data.bitcoin.usd;
+        if (!data.RAW || !data.RAW.BTC || !data.RAW.BTC.USD) {
+            throw new Error('Datos de precio no disponibles');
+        }
+        
+        currentPrice = data.RAW.BTC.USD.PRICE;
         currentPriceTimestamp = new Date();
 
         // Actualizar UI
         document.getElementById('current-price').textContent = `$${currentPrice.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
         
-        const change24h = data.bitcoin.usd_24h_change || 0;
+        const change24h = data.RAW.BTC.USD.CHANGEPCT24HOUR || 0;
         const changeElement = document.getElementById('price-change');
         changeElement.textContent = `${change24h >= 0 ? '+' : ''}${change24h.toFixed(2)}% (24h)`;
         changeElement.className = change24h >= 0 ? 'price-change change-positive' : 'price-change change-negative';
@@ -92,23 +135,26 @@ async function fetchCurrentPrice() {
     }
 }
 
-// Obtener datos históricos
+// Obtener datos históricos (CryptoCompare)
 async function fetchHistoricalData() {
     try {
-        const interval = currentTimeframe === '7' ? 'hourly' : 'daily';
-        const response = await fetch(`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${currentTimeframe}&interval=${interval}`);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        // Determinar intervalo y límite según timeframe
+        const interval = currentTimeframe === '7' ? 'histohour' : 'histoday';
+        const limit = currentTimeframe === '7' ? 168 : currentTimeframe; // 168 horas = 7 días
+        
+        const response = await fetch(`https://min-api.cryptocompare.com/data/v2/${interval}?fsym=BTC&tsym=USD&limit=${limit}`);
+        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
         
         const data = await response.json();
-        if (!data.prices || data.prices.length === 0) {
+        if (!data.Data || !data.Data.Data || data.Data.Data.length === 0) {
             throw new Error('No se recibieron datos de precios');
         }
         
-        historicalData = data.prices.map(price => ({
-            x: new Date(price[0]),
-            y: price[1]
+        historicalData = data.Data.Data.map(item => ({
+            x: new Date(item.time * 1000),
+            y: item.close
         }));
-
+        
         // Agregar precio actual si es más reciente
         if (currentPrice && currentPriceTimestamp) {
             const lastDataPoint = historicalData[historicalData.length - 1].x;
@@ -125,115 +171,121 @@ async function fetchHistoricalData() {
         document.getElementById('data-points').textContent = historicalData.length + ' puntos';
     } catch (error) {
         console.error(`Error fetching historical data for ${currentTimeframe}D:`, error);
-        historicalData = [];
-        document.getElementById('data-points').textContent = '0 puntos';
         throw error;
     }
 }
 
-// Calcular predicción
+// Mejorada predicción basada en número áureo
 function calculatePrediction(change24h) {
-    // Usar change24h como respaldo si no hay suficientes datos históricos
-    let momentum = change24h / 100;
-    let detectedLevels = 0;
+    if (!currentPrice || historicalData.length < 2) return null;
 
-    if (historicalData.length >= 2 && currentPrice) {
-        // Calcular momentum basado en datos históricos
-        const shortTerm = currentTimeframe === '7' ? 7 : 14;
-        const startIdx = Math.max(0, historicalData.length - shortTerm);
-        const shortTermData = historicalData.slice(startIdx);
-        const startPrice = shortTermData[0].y;
-        const endPrice = shortTermData[shortTermData.length - 1].y;
-        momentum = (endPrice - startPrice) / startPrice;
+    // 1. Calcular momentum basado en cambio reciente
+    const shortTerm = Math.max(3, Math.floor(historicalData.length * 0.2)); // 20% de los datos
+    const startIdx = Math.max(0, historicalData.length - shortTerm);
+    const shortTermData = historicalData.slice(startIdx);
+    const startPrice = shortTermData[0].y;
+    const endPrice = shortTermData[shortTermData.length - 1].y;
+    const momentum = (endPrice - startPrice) / startPrice;
 
-        // Identificar niveles de Fibonacci
-        const maxPrice = Math.max(...historicalData.map(d => d.y));
-        const minPrice = Math.min(...historicalData.map(d => d.y));
-        const fibLevels = [
-            minPrice + (maxPrice - minPrice) * 0.236,
-            minPrice + (maxPrice - minPrice) * 0.382,
-            minPrice + (maxPrice - minPrice) * 0.5,
-            minPrice + (maxPrice - minPrice) * 0.618,
-            minPrice + (maxPrice - minPrice) * 0.786
-        ];
+    // 2. Identificar niveles de Fibonacci estándar
+    const maxPrice = Math.max(...historicalData.map(d => d.y));
+    const minPrice = Math.min(...historicalData.map(d => d.y));
+    const fibLevels = [
+        minPrice + (maxPrice - minPrice) * 0.236, // 23.6%
+        minPrice + (maxPrice - minPrice) * 0.382, // 38.2%
+        minPrice + (maxPrice - minPrice) * 0.5,   // 50%
+        minPrice + (maxPrice - minPrice) * 0.618, // 61.8%
+        minPrice + (maxPrice - minPrice) * 0.786  // 78.6%
+    ];
 
-        detectedLevels = fibLevels.filter(level => 
-            Math.abs(currentPrice - level) < (maxPrice - minPrice) * 0.05
-        ).length;
-    }
+    // Contar niveles detectados
+    const priceRange = maxPrice - minPrice;
+    const detectionThreshold = Math.max(priceRange * 0.05, 500); // 5% del rango o mínimo $500
+    const detectedLevels = fibLevels.filter(level => 
+        Math.abs(currentPrice - level) < detectionThreshold
+    ).length;
 
-    // Actualizar niveles de Fibonacci
-    document.getElementById('fib-levels').textContent = `${detectedLevels}/5 detectados`;
+    // Depurar niveles
+    console.log('Fibonacci Levels:', fibLevels.map(level => level.toFixed(2)));
+    console.log('Current Price:', currentPrice.toFixed(2));
+    console.log('Detection Threshold:', detectionThreshold.toFixed(2));
+    console.log('Detected Levels:', detectedLevels);
 
-    // Calcular momentum áureo
-    const goldenMomentum = momentum * goldenRatio * 100;
+    document.getElementById('fib-levels').textContent = `${detectedLevels}/5 niveles detectados`;
+
+    // 3. Factor de impulso áureo
+    const goldenMomentum = (change24h / 100) * goldenRatio * 100;
     document.getElementById('golden-momentum').textContent = `${goldenMomentum.toFixed(2)}%`;
 
-    // Calcular predicción
-    if (!currentPrice) return null;
-    const predicted = currentPrice * (1 + momentum * goldenRatio);
+    // 4. Calcular predicción con ajuste de niveles detectados
+    const levelFactor = 1 + (detectedLevels * 0.05); // +5% por nivel detectado
+    const predicted = currentPrice * (1 + momentum * goldenRatio) * levelFactor;
 
-    // Guardar predicción
+    // 5. Guardar predicción para seguimiento
     const predictionEntry = {
         timestamp: new Date(),
         actualPrice: currentPrice,
         predictedPrice: predicted,
-        timeframe: currentTimeframe
+        timeframe: currentTimeframe,
+        detectedLevels: detectedLevels
     };
+    
     predictionHistory.push(predictionEntry);
-    if (predictionHistory.length > 100) {
-        predictionHistory = predictionHistory.slice(predictionHistory.length - 100);
+    
+    // Mantener solo las últimas entradas
+    if (predictionHistory.length > maxHistorySize) {
+        predictionHistory = predictionHistory.slice(predictionHistory.length - maxHistorySize);
     }
-    localStorage.setItem('predictionHistory', JSON.stringify(predictionHistory));
-
+    
+    localStorage.setItem('goldenPredictorHistory', JSON.stringify(predictionHistory));
+    
     return predicted;
 }
 
 // Actualizar detalles de predicción
-function updatePredictionDetails(change24h) {
-    // Inicializar predictionHistory con una entrada de prueba si está vacío
-    if (predictionHistory.length === 0 && currentPrice) {
-        predictionHistory.push({
-            timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // Hace 2 días
-            actualPrice: currentPrice,
-            predictedPrice: currentPrice * 1.05, // Simular predicción
-            timeframe: currentTimeframe
-        });
-        localStorage.setItem('predictionHistory', JSON.stringify(predictionHistory));
-    }
-
+function updatePredictionDetails() {
     // Calcular precisión histórica
-    const accuracy = calculateHistoricalAccuracy();
-    document.getElementById('accuracy-rate').textContent = `${accuracy.toFixed(2)}%`;
-
-    // Calcular predicción
-    predictedPrice = calculatePrediction(change24h);
+    if (predictionHistory.length > 0) {
+        const accuracy = calculateHistoricalAccuracy();
+        document.getElementById('accuracy-rate').textContent = `${accuracy.toFixed(2)}%`;
+        
+        // Actualizar barra de precisión
+        const accuracyBar = document.getElementById('accuracy-bar-fill');
+        accuracyBar.style.width = `${Math.min(100, Math.max(0, accuracy))}%`;
+        accuracyBar.style.background = accuracy > 70 ? 'var(--positive)' : 
+                                     accuracy > 50 ? '#ffd166' : 'var(--negative)';
+    }
+    
+    // Actualizar precio predicho en la UI
     if (predictedPrice !== null) {
         document.getElementById('prediction-price').textContent = 
             `$${predictedPrice.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
-    } else {
-        document.getElementById('prediction-price').textContent = '$--.--';
     }
 }
 
-// Calcular precisión histórica
+// Calcular precisión histórica mejorada
 function calculateHistoricalAccuracy() {
-    if (predictionHistory.length === 0) return 0;
-
+    if (predictionHistory.length < 2) return 0;
+    
     let accuracySum = 0;
     let validEntries = 0;
-
-    for (let i = 0; i < predictionHistory.length; i++) {
-        const entry = predictionHistory[i];
-        const timePassed = (new Date() - new Date(entry.timestamp)) / (1000 * 60 * 60 * 24);
-        if (timePassed > 1) {
-            const diff = Math.abs(entry.actualPrice - entry.predictedPrice);
-            const accuracy = (1 - (diff / entry.actualPrice)) * 100;
-            accuracySum += accuracy;
+    
+    // Calcular precisión para cada predicción con datos posteriores
+    for (let i = 0; i < predictionHistory.length - 1; i++) {
+        const prediction = predictionHistory[i];
+        const nextData = predictionHistory[i + 1];
+        
+        // Calcular diferencia porcentual
+        const priceDiff = Math.abs(prediction.predictedPrice - nextData.actualPrice);
+        const accuracy = (1 - (priceDiff / prediction.predictedPrice)) * 100;
+        
+        // Solo considerar predicciones válidas
+        if (!isNaN(accuracy)) {
+            accuracySum += Math.max(0, accuracy); // No permitir valores negativos
             validEntries++;
         }
     }
-
+    
     return validEntries > 0 ? accuracySum / validEntries : 0;
 }
 
@@ -261,6 +313,7 @@ function initChart() {
     // Preparar datos para predicción
     let predictionData = [];
     let annotations = [];
+    
     if (currentPrice && currentPriceTimestamp && predictedPrice) {
         const futureDate = new Date(currentPriceTimestamp);
         const daysToAdd = parseInt(currentTimeframe) / 10;
@@ -271,19 +324,71 @@ function initChart() {
             { x: futureDate, y: predictedPrice }
         ];
 
+        // Añadir línea horizontal para el precio predicho
         annotations.push({
-            type: 'label',
-            xValue: futureDate,
-            yValue: predictedPrice,
-            content: `$${predictedPrice.toLocaleString('en-US', {maximumFractionDigits: 2})}`,
-            backgroundColor: 'rgba(0, 230, 195, 0.8)',
-            borderRadius: 5,
-            padding: 10,
-            font: { size: 12, family: 'Exo 2', weight: 'bold' },
-            color: '#0a0e17',
-            position: 'center',
-            xAdjust: 0,
-            yAdjust: predictedPrice > currentPrice ? -25 : 25
+            type: 'line',
+            yMin: predictedPrice,
+            yMax: predictedPrice,
+            borderColor: 'rgba(0, 230, 195, 0.8)',
+            borderWidth: 2,
+            borderDash: [5, 5],
+            label: {
+                enabled: true,
+                content: `PREDICCIÓN: $${predictedPrice.toLocaleString('en-US', {maximumFractionDigits: 2})}`,
+                backgroundColor: 'rgba(0, 230, 195, 0.8)',
+                font: { size: 12, family: 'Exo 2', weight: 'bold' },
+                color: '#0a0e17',
+                position: 'end',
+                yAdjust: predictedPrice > currentPrice ? -10 : 10
+            }
+        });
+    }
+
+    // Añadir líneas horizontales para niveles de Fibonacci
+    const maxPrice = Math.max(...historicalData.map(d => d.y));
+    const minPrice = Math.min(...historicalData.map(d => d.y));
+    const fibLevels = [
+        { level: minPrice + (maxPrice - minPrice) * 0.236, label: '23.6%' },
+        { level: minPrice + (maxPrice - minPrice) * 0.382, label: '38.2%' },
+        { level: minPrice + (maxPrice - minPrice) * 0.5, label: '50%' },
+        { level: minPrice + (maxPrice - minPrice) * 0.618, label: '61.8%' },
+        { level: minPrice + (maxPrice - minPrice) * 0.786, label: '78.6%' }
+    ];
+
+    fibLevels.forEach((fib, index) => {
+        annotations.push({
+            type: 'line',
+            yMin: fib.level,
+            yMax: fib.level,
+            borderColor: 'rgba(240, 185, 11, 0.5)', // Color dorado con opacidad
+            borderWidth: 1,
+            borderDash: [3, 3],
+            label: {
+                enabled: true,
+                content: `${fib.label}: $${fib.level.toLocaleString('en-US', {maximumFractionDigits: 2})}`,
+                backgroundColor: 'rgba(240, 185, 11, 0.7)',
+                font: { size: 10, family: 'Exo 2', weight: 'normal' },
+                color: '#0a0e17',
+                position: 'start',
+                yAdjust: index % 2 === 0 ? -10 : 10 // Alternar posición para evitar solapamiento
+            }
+        });
+    });
+
+    // Añadir predicciones históricas al gráfico
+    let historicalPredictions = [];
+    if (predictionHistory.length > 0) {
+        historicalPredictions = predictionHistory.map(prediction => {
+            const predictionDate = new Date(prediction.timestamp);
+            const resultDate = new Date(prediction.timestamp);
+            resultDate.setDate(resultDate.getDate() + parseInt(prediction.timeframe)/10);
+            
+            return {
+                x: resultDate,
+                y: prediction.actualPrice,
+                prediction: prediction.predictedPrice,
+                timestamp: prediction.timestamp
+            };
         });
     }
 
@@ -308,7 +413,7 @@ function initChart() {
                     backgroundColor: 'rgba(0, 230, 195, 0.2)',
                     borderWidth: 4,
                     borderDash: [8, 4],
-                    pointRadius: [0, 8],
+                    pointRadius: [0, 0], // Sin puntos en la línea de predicción
                     pointBackgroundColor: 'var(--prediction-color)',
                     pointBorderColor: '#fff',
                     pointBorderWidth: 2,
@@ -318,6 +423,15 @@ function initChart() {
                     shadowOffsetY: 4,
                     shadowBlur: 10,
                     shadowColor: 'rgba(0, 230, 195, 0.5)'
+                },
+                {
+                    label: 'Predicciones Pasadas',
+                    data: historicalPredictions,
+                    pointBackgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    pointBorderColor: '#00e6c3',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: false
                 }
             ]
         },
@@ -328,10 +442,7 @@ function initChart() {
                 legend: {
                     display: true,
                     labels: {
-                        color: 'rgba(200, 200, 200, 0.7)',
-                        filter: function(item, chart) {
-                            return item.datasetIndex === 0 || (item.datasetIndex === 1 && predictionData.length > 0);
-                        }
+                        color: 'rgba(200, 200, 200, 0.7)'
                     }
                 },
                 tooltip: {
@@ -346,9 +457,15 @@ function initChart() {
                             if (context.parsed.y !== null) {
                                 label += `$${context.parsed.y.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
                             }
-                            if (context.dataset.label === 'Predicción Áurea') {
-                                label += ' (Predicho)';
+                            
+                            // Información adicional para predicciones pasadas
+                            if (context.datasetIndex === 2) {
+                                const dataPoint = historicalPredictions[context.dataIndex];
+                                const predictionDate = new Date(dataPoint.timestamp).toLocaleDateString();
+                                label += `\nPredicho: $${dataPoint.prediction.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
+                                label += `\nFecha predicción: ${predictionDate}`;
                             }
+                            
                             return label;
                         }
                     }
