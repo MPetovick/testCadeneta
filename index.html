@@ -13,6 +13,11 @@
 </head>
 <body>
     <div class="container">
+        <div class="notification" id="notification">
+            <button class="close-btn">×</button>
+            <div id="notification-message"></div>
+        </div>
+        
         <header>
             <div class="header-content">
                 <h1>Golden Crypto Predictor PRO</h1>
@@ -54,7 +59,10 @@
             
             <div class="chart-wrapper">
                 <div class="loading-overlay" id="loading-overlay">
-                    <div class="loading-spinner"></div>
+                    <div class="loading-content">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">Cargando datos y analizando con número áureo...</div>
+                    </div>
                 </div>
                 <canvas id="price-chart"></canvas>
             </div>
@@ -63,6 +71,9 @@
                 <div class="detail-card">
                     <h3><i class="fas fa-chart-line"></i> Precisión Histórica</h3>
                     <div class="value" id="accuracy-rate">--.--%</div>
+                    <div class="accuracy-bar">
+                        <div class="accuracy-fill" id="accuracy-bar-fill"></div>
+                    </div>
                 </div>
                 <div class="detail-card">
                     <h3><i class="fas fa-bolt"></i> Momentum Áureo</h3>
@@ -70,7 +81,7 @@
                 </div>
                 <div class="detail-card">
                     <h3><i class="fas fa-project-diagram"></i> Niveles Fibonacci</h3>
-                    <div class="value" id="fib-levels">--/5 detectados</div>
+                    <div class="value" id="fib-levels">0/5 detectados</div>
                 </div>
                 <div class="detail-card">
                     <h3><i class="fas fa-database"></i> Datos Analizados</h3>
@@ -85,7 +96,7 @@
         </div>
 
         <div class="footer">
-            <p>Golden Crypto Predictor PRO • Datos en tiempo real de CoinGecko • Algoritmo basado en número áureo</p>
+            <p>Golden Crypto Predictor PRO • Datos en tiempo real de CryptoCompare • Algoritmo basado en número áureo</p>
         </div>
     </div>
 
