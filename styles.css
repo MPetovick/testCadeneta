@@ -69,7 +69,7 @@ h1 {
     right: 50px;
     width: 120px;
     height: 120px;
-    opacity: 0.2;
+    opacity: 0.5;
     z-index: 1;
 }
 
@@ -207,10 +207,19 @@ h1 {
     justify-content: center;
     z-index: 10;
     display: none;
+    border-radius: 12px;
 }
 
 .loading-overlay.active {
     display: flex;
+}
+
+.loading-content {
+    text-align: center;
+    padding: 20px;
+    background: rgba(23, 28, 45, 0.9);
+    border-radius: 12px;
+    border: 1px solid var(--card-border);
 }
 
 .loading-spinner {
@@ -220,6 +229,12 @@ h1 {
     width: 40px;
     height: 40px;
     animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+.loading-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
 }
 
 @keyframes spin {
@@ -261,6 +276,22 @@ h1 {
     font-weight: 700;
 }
 
+.accuracy-bar {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.accuracy-fill {
+    height: 100%;
+    background: var(--positive);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 1s ease;
+}
+
 .golden-ratio-info {
     display: flex;
     align-items: center;
@@ -287,6 +318,44 @@ h1 {
     margin-top: 20px;
 }
 
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 8px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 1000;
+    transform: translateX(120%);
+    transition: transform 0.4s ease;
+    max-width: 350px;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+.notification.error {
+    border-left: 4px solid var(--negative);
+}
+
+.notification.success {
+    border-left: 4px solid var(--positive);
+}
+
+.notification .close-btn {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
 @media (max-width: 768px) {
     .chart-header {
         flex-direction: column;
@@ -305,6 +374,13 @@ h1 {
     
     .golden-spiral {
         display: none;
+    }
+    
+    .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
     }
 }
 
