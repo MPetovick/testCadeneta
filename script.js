@@ -1,522 +1,985 @@
-// Variables globales mejoradas
-let priceChart = null;
-let currentTimeframe = '30';
-let historicalData = [];
-let predictedPrice = null;
-let currentPrice = null;
-let currentPriceTimestamp = null;
-let predictionHistory = JSON.parse(localStorage.getItem('goldenPredictorHistory')) || [];
-const goldenRatio = 1.618;
-const maxHistorySize = 50;
-const retryCount = 3;
-const retryDelay = 1500;
+// script.js
 
-// Función para mostrar notificaciones
-function showNotification(message, type = 'info', duration = 5000) {
-    const notification = document.getElementById('notification');
-    const messageElement = document.getElementById('notification-message');
-    
-    notification.className = 'notification show ' + type;
-    messageElement.textContent = message;
-    
-    // Configurar cierre automático
-    setTimeout(() => {
-        notification.classList.remove('show');
-    }, duration);
-    
-    // Configurar botón de cierre
-    document.querySelector('.close-btn').onclick = () => {
-        notification.classList.remove('show');
-    };
-}
+// Optimized configuration
+const CONFIG = {
+  CRYPTOCOMPARE_API: 'https://min-api.cryptocompare.com/data',
+  API_KEY: '',
+  CACHE_TTL: 300000, // 5 minutes
+  RETRY_COUNT: 3,
+  RETRY_DELAY: 1500,
+  UPDATE_INTERVAL: 300000, // 5 minutes
+  GOLDEN_RATIO: 1.618,
+  FIB_LEVELS: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.272, 1.414, 1.618, 2, 2.618],
+  TIMEFRAME_MAP: {
+    '15m': { interval: 'minute', limit: 120, unit: 'minute', tooltipFormat: 'HH:mm', minDataPoints: 15, timeframeHours: 0.25 },
+    '1h': { interval: 'minute', limit: 360, unit: 'hour', tooltipFormat: 'MMM dd HH:mm', minDataPoints: 20, timeframeHours: 1 },
+    '4h': { interval: 'minute', limit: 1440, unit: 'hour', tooltipFormat: 'MMM dd HH:mm', minDataPoints: 20, timeframeHours: 4 },
+    '12h': { interval: 'hour', limit: 72, unit: 'hour', tooltipFormat: 'MMM dd HH:mm', minDataPoints: 20, timeframeHours: 12 },
+    '1d': { interval: 'hour', limit: 144, unit: 'hour', tooltipFormat: 'MMM dd HH:mm', minDataPoints: 20, timeframeHours: 24 },
+    '7': { interval: 'hour', limit: 240, unit: 'day', tooltipFormat: 'MMM dd HH:mm', minDataPoints: 20, timeframeHours: 168 },
+    '15': { interval: 'day', limit: 90, unit: 'day', tooltipFormat: 'MMM dd', minDataPoints: 20, timeframeHours: 360 },
+    '30': { interval: 'day', limit: 90, unit: 'day', tooltipFormat: 'MMM dd', minDataPoints: 30, timeframeHours: 720 },
+    '90': { interval: 'day', limit: 120, unit: 'month', tooltipFormat: 'MMM yyyy', minDataPoints: 52, timeframeHours: 2160 },
+    '180': { interval: 'day', limit: 240, unit: 'month', tooltipFormat: 'MMM yyyy', minDataPoints: 52, timeframeHours: 4320 }
+  },
+  INDICATOR_WEIGHTS: {
+    momentum: 0.20,
+    rsi: 0.15,
+    volatility: 0.10,
+    fib: 0.15,
+    ema: 0.10,
+    ichimoku: 0.15,
+    volume_profile: 0.10,
+    sentiment: 0.05
+  }
+};
 
-// Función para reintentar solicitudes
-async function retryRequest(fn, maxRetries = retryCount, delay = retryDelay) {
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            return await fn();
-        } catch (error) {
-            if (i === maxRetries - 1) throw error;
-            await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-            showNotification(`Reintentando... (${i+1}/${maxRetries})`, 'info', 2000);
-        }
-    }
-}
+// State management
+const state = {
+  priceChart: null,
+  currentTimeframe: '7',
+  historicalData: [],
+  currentPrice: null,
+  predictedPrice: null,
+  confidenceLevel: 0,
+  isOnline: navigator.onLine,
+  lastSwingHigh: null,
+  lastSwingLow: null,
+  indicators: {
+    rsi: null,
+    macd: null,
+    ema50: null,
+    ema200: null,
+    bollinger: null,
+    vwap: null,
+    ichimoku: null,
+    adx: null,
+    volumeProfile: null
+  },
+  signalHistory: []
+};
 
-// Configuración inicial
-document.addEventListener('DOMContentLoaded', function() {
-    // Inicializar notificación
-    document.getElementById('notification').style.display = 'block';
-    
-    // Inicializar botones de timeframe
-    initTimeframeButtons();
-    
-    // Cargar datos iniciales
-    loadData();
-    
-    // Configurar actualización periódica
-    setInterval(loadData, 300000); // Actualizar cada 5 minutos
+// Initialization
+document.addEventListener('DOMContentLoaded', () => {
+  initUI();
+  loadData();
+
+  // Periodic update
+  setInterval(loadData, CONFIG.UPDATE_INTERVAL);
+
+  // Connection handling
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
 });
 
-// Manejar botones de timeframe
-function initTimeframeButtons() {
-    const buttons = document.querySelectorAll('.timeframe-btn');
-    buttons.forEach(button => {
-        button.addEventListener('click', function() {
-            buttons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            currentTimeframe = this.dataset.timeframe;
-            document.getElementById('current-timeframe').textContent = currentTimeframe + 'D';
-            loadData();
-        });
+function initUI() {
+  // Timeframe buttons
+  document.querySelectorAll('.timeframe-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.currentTimeframe = btn.dataset.timeframe;
+      document.getElementById('current-timeframe').textContent = 
+        state.currentTimeframe.includes('m') ? state.currentTimeframe.toUpperCase() :
+        state.currentTimeframe.includes('h') ? state.currentTimeframe.toUpperCase() :
+        `${state.currentTimeframe}D`;
+      loadData();
     });
+  });
+
+  // Theme toggle
+  document.querySelector('.theme-toggle')?.addEventListener('click', () => {
+    document.body.classList.toggle('dark-theme');
+    const icon = document.querySelector('.theme-toggle i');
+    icon.className = document.body.classList.contains('dark-theme') ? 'fas fa-sun' : 'fas fa-moon';
+    if (state.priceChart) renderChart();
+  });
+
+  // Refresh button
+  document.getElementById('refresh-btn')?.addEventListener('click', () => {
+    loadData();
+    showNotification('Actualizando datos...', 'info');
+  });
 }
 
-// Cargar todos los datos
 async function loadData() {
-    const loadingOverlay = document.getElementById('loading-overlay');
-    loadingOverlay.classList.add('active');
+  if (!state.isOnline) {
+    showNotification('Sin conexión: usando datos almacenados', 'warning');
+    updateUIWithCachedData();
+    return;
+  }
 
-    try {
-        // Obtener precio actual
-        const change24h = await retryRequest(fetchCurrentPrice);
-        
-        // Obtener datos históricos
-        await retryRequest(fetchHistoricalData);
-        
-        // Calcular y actualizar predicción
-        predictedPrice = calculatePrediction(change24h);
-        
-        // Actualizar UI
-        updatePredictionDetails();
-        
-        // Inicializar gráfico
-        initChart();
-        
-        // Mostrar notificación de éxito
-        showNotification('Datos actualizados con éxito', 'success', 3000);
-        
-    } catch (error) {
-        console.error('Error loading data:', error);
-        showNotification(`Error al cargar datos: ${error.message}`, 'error', 5000);
-    } finally {
-        loadingOverlay.classList.remove('active');
-    }
+  showLoading('Obteniendo datos de Bitcoin...');
+
+  try {
+    // Fetch current price
+    const priceData = await fetchWithCache(
+      CONFIG.API_KEY
+        ? `${CONFIG.CRYPTOCOMPARE_API}/pricemultifull?fsyms=BTC&tsyms=USD&api_key=${CONFIG.API_KEY}`
+        : `${CONFIG.CRYPTOCOMPARE_API}/pricemultifull?fsyms=BTC&tsyms=USD`,
+      'burex_currentPrice'
+    );
+
+    if (!priceData.RAW?.BTC?.USD) throw new Error('Datos de precio no disponibles');
+    state.currentPrice = priceData.RAW.BTC.USD.PRICE;
+    updatePriceDisplay(priceData.RAW.BTC.USD);
+
+    // Fetch historical data
+    await fetchHistoricalData();
+
+    // Calculate indicators and predictions
+    calculateIndicators();
+    calculatePrediction();
+    updateSignalHistory();
+
+    // Render chart
+    renderChart();
+
+    showNotification('Datos actualizados correctamente', 'success', 2000);
+  } catch (error) {
+    console.error('Error loading data:', error);
+    showNotification(`Error: ${error.message}. Usando datos en caché.`, 'error');
+    updateUIWithCachedData();
+  } finally {
+    hideLoading();
+  }
 }
 
-// Obtener precio actual (CryptoCompare)
-async function fetchCurrentPrice() {
+async function fetchWithCache(url, cacheKey) {
+  // Try cache first
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
     try {
-        const response = await fetch('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC&tsyms=USD');
-        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-        
-        const data = await response.json();
-        if (!data.RAW || !data.RAW.BTC || !data.RAW.BTC.USD) {
-            throw new Error('Datos de precio no disponibles');
-        }
-        
-        currentPrice = data.RAW.BTC.USD.PRICE;
-        currentPriceTimestamp = new Date();
-
-        // Actualizar UI
-        document.getElementById('current-price').textContent = `$${currentPrice.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
-        
-        const change24h = data.RAW.BTC.USD.CHANGEPCT24HOUR || 0;
-        const changeElement = document.getElementById('price-change');
-        changeElement.textContent = `${change24h >= 0 ? '+' : ''}${change24h.toFixed(2)}% (24h)`;
-        changeElement.className = change24h >= 0 ? 'price-change change-positive' : 'price-change change-negative';
-        
-        return change24h;
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < CONFIG.CACHE_TTL) {
+        return data;
+      }
     } catch (error) {
-        console.error('Error fetching current price:', error);
-        document.getElementById('current-price').textContent = 'Error';
-        document.getElementById('price-change').textContent = 'Error';
+      console.error('Error parsing cache:', error);
+      localStorage.removeItem(cacheKey);
+    }
+  }
+
+  // Fetch with retries
+  for (let i = 0; i < CONFIG.RETRY_COUNT; i++) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+      const data = await response.json();
+
+      if (data.Response === 'Error') throw new Error(data.Message || 'API error');
+
+      // Store in cache
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+      return data;
+    } catch (error) {
+      if (i < CONFIG.RETRY_COUNT - 1) {
+        console.error(`Retry ${i + 1} failed for ${url}: ${error.message}`);
+        await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY * Math.pow(2, i)));
+      } else {
         throw error;
+      }
     }
+  }
 }
 
-// Obtener datos históricos (CryptoCompare)
 async function fetchHistoricalData() {
-    try {
-        // Determinar intervalo y límite según timeframe
-        const interval = currentTimeframe === '7' ? 'histohour' : 'histoday';
-        const limit = currentTimeframe === '7' ? 168 : currentTimeframe; // 168 horas = 7 días
-        
-        const response = await fetch(`https://min-api.cryptocompare.com/data/v2/${interval}?fsym=BTC&tsym=USD&limit=${limit}`);
-        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-        
-        const data = await response.json();
-        if (!data.Data || !data.Data.Data || data.Data.Data.length === 0) {
-            throw new Error('No se recibieron datos de precios');
-        }
-        
-        historicalData = data.Data.Data.map(item => ({
-            x: new Date(item.time * 1000),
-            y: item.close
-        }));
-        
-        // Agregar precio actual si es más reciente
-        if (currentPrice && currentPriceTimestamp) {
-            const lastDataPoint = historicalData[historicalData.length - 1].x;
-            if (currentPriceTimestamp > lastDataPoint) {
-                historicalData.push({
-                    x: currentPriceTimestamp,
-                    y: currentPrice
-                });
-            }
-            historicalData.sort((a, b) => a.x - b.x);
-        }
+  const { interval, limit } = CONFIG.TIMEFRAME_MAP[state.currentTimeframe];
+  const cacheKey = `burex_historicalData_${state.currentTimeframe}`;
+  const url = CONFIG.API_KEY
+    ? `${CONFIG.CRYPTOCOMPARE_API}/v2/histo${interval}?fsym=BTC&tsym=USD&limit=${limit}&api_key=${CONFIG.API_KEY}`
+    : `${CONFIG.CRYPTOCOMPARE_API}/v2/histo${interval}?fsym=BTC&tsym=USD&limit=${limit}`;
 
-        // Actualizar contador de puntos de datos
-        document.getElementById('data-points').textContent = historicalData.length + ' puntos';
-    } catch (error) {
-        console.error(`Error fetching historical data for ${currentTimeframe}D:`, error);
-        throw error;
+  const data = await fetchWithCache(url, cacheKey);
+
+  if (!data.Data?.Data?.length) throw new Error('No hay datos históricos disponibles');
+
+  // Process data
+  state.historicalData = data.Data.Data
+    .filter(item => item.close > 0)
+    .map(item => ({
+      x: new Date(item.time * 1000),
+      y: item.close,
+      volume: item.volumeto,
+      high: item.high,
+      low: item.low,
+      open: item.open
+    }));
+
+  console.log(`Fetched ${state.historicalData.length} data points for ${state.currentTimeframe}`);
+
+  // Add current price if more recent
+  if (state.currentPrice) {
+    const lastDate = state.historicalData[state.historicalData.length - 1]?.x;
+    const currentDate = new Date();
+    if (!lastDate || currentDate > lastDate) {
+      state.historicalData.push({
+        x: currentDate,
+        y: state.currentPrice,
+        volume: state.historicalData[state.historicalData.length - 1]?.volume || 0,
+        high: state.currentPrice,
+        low: state.currentPrice,
+        open: state.currentPrice
+      });
     }
+  }
 }
 
-// Mejorada predicción basada en número áureo
-function calculatePrediction(change24h) {
-    if (!currentPrice || historicalData.length < 2) return null;
+function updatePriceDisplay(priceData) {
+  document.getElementById('current-price').textContent =
+    `$${state.currentPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
-    // 1. Calcular momentum basado en cambio reciente
-    const shortTerm = Math.max(3, Math.floor(historicalData.length * 0.2)); // 20% de los datos
-    const startIdx = Math.max(0, historicalData.length - shortTerm);
-    const shortTermData = historicalData.slice(startIdx);
-    const startPrice = shortTermData[0].y;
-    const endPrice = shortTermData[shortTermData.length - 1].y;
-    const momentum = (endPrice - startPrice) / startPrice;
-
-    // 2. Identificar niveles de Fibonacci estándar
-    const maxPrice = Math.max(...historicalData.map(d => d.y));
-    const minPrice = Math.min(...historicalData.map(d => d.y));
-    const fibLevels = [
-        minPrice + (maxPrice - minPrice) * 0.236, // 23.6%
-        minPrice + (maxPrice - minPrice) * 0.382, // 38.2%
-        minPrice + (maxPrice - minPrice) * 0.5,   // 50%
-        minPrice + (maxPrice - minPrice) * 0.618, // 61.8%
-        minPrice + (maxPrice - minPrice) * 0.786  // 78.6%
-    ];
-
-    // Contar niveles detectados
-    const priceRange = maxPrice - minPrice;
-    const detectionThreshold = Math.max(priceRange * 0.05, 500); // 5% del rango o mínimo $500
-    const detectedLevels = fibLevels.filter(level => 
-        Math.abs(currentPrice - level) < detectionThreshold
-    ).length;
-
-    // Depurar niveles
-    console.log('Fibonacci Levels:', fibLevels.map(level => level.toFixed(2)));
-    console.log('Current Price:', currentPrice.toFixed(2));
-    console.log('Detection Threshold:', detectionThreshold.toFixed(2));
-    console.log('Detected Levels:', detectedLevels);
-
-    document.getElementById('fib-levels').textContent = `${detectedLevels}/5 niveles detectados`;
-
-    // 3. Factor de impulso áureo
-    const goldenMomentum = (change24h / 100) * goldenRatio * 100;
-    document.getElementById('golden-momentum').textContent = `${goldenMomentum.toFixed(2)}%`;
-
-    // 4. Calcular predicción con ajuste de niveles detectados
-    const levelFactor = 1 + (detectedLevels * 0.05); // +5% por nivel detectado
-    const predicted = currentPrice * (1 + momentum * goldenRatio) * levelFactor;
-
-    // 5. Guardar predicción para seguimiento
-    const predictionEntry = {
-        timestamp: new Date(),
-        actualPrice: currentPrice,
-        predictedPrice: predicted,
-        timeframe: currentTimeframe,
-        detectedLevels: detectedLevels
-    };
-    
-    predictionHistory.push(predictionEntry);
-    
-    // Mantener solo las últimas entradas
-    if (predictionHistory.length > maxHistorySize) {
-        predictionHistory = predictionHistory.slice(predictionHistory.length - maxHistorySize);
-    }
-    
-    localStorage.setItem('goldenPredictorHistory', JSON.stringify(predictionHistory));
-    
-    return predicted;
+  const change24h = priceData.CHANGEPCT24HOUR || 0;
+  const changeElement = document.getElementById('price-change');
+  changeElement.textContent = `${change24h >= 0 ? '+' : ''}${change24h.toFixed(2)}% (24h)`;
+  changeElement.className = change24h >= 0 ? 'stat-label trend-up' : 'stat-label trend-down';
 }
 
-// Actualizar detalles de predicción
-function updatePredictionDetails() {
-    // Calcular precisión histórica
-    if (predictionHistory.length > 0) {
-        const accuracy = calculateHistoricalAccuracy();
-        document.getElementById('accuracy-rate').textContent = `${accuracy.toFixed(2)}%`;
-        
-        // Actualizar barra de precisión
-        const accuracyBar = document.getElementById('accuracy-bar-fill');
-        accuracyBar.style.width = `${Math.min(100, Math.max(0, accuracy))}%`;
-        accuracyBar.style.background = accuracy > 70 ? 'var(--positive)' : 
-                                     accuracy > 50 ? '#ffd166' : 'var(--negative)';
-    }
-    
-    // Actualizar precio predicho en la UI
-    if (predictedPrice !== null) {
-        document.getElementById('prediction-price').textContent = 
-            `$${predictedPrice.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
-    }
+function calculateIndicators() {
+  const prices = state.historicalData.map(d => d.y);
+  const highs = state.historicalData.map(d => d.high);
+  const lows = state.historicalData.map(d => d.low);
+  const volumes = state.historicalData.map(d => d.volume);
+  const minDataPoints = CONFIG.TIMEFRAME_MAP[state.currentTimeframe].minDataPoints;
+
+  if (prices.length < minDataPoints) {
+    console.warn(`Datos insuficientes para indicadores en ${state.currentTimeframe}: ${prices.length} puntos`);
+    return;
+  }
+
+  // RSI
+  state.indicators.rsi = calculateRSI(prices, Math.min(14, prices.length - 1));
+
+  // EMA
+  state.indicators.ema50 = calculateEMA(Math.min(50, prices.length), prices);
+  state.indicators.ema200 = prices.length >= 200 ? calculateEMA(200, prices) : null;
+
+  // Bollinger Bands
+  state.indicators.bollinger = calculateBollingerBands(prices, Math.min(20, prices.length));
+
+  // VWAP
+  state.indicators.vwap = calculateVWAP(state.historicalData);
+
+  // Ichimoku Cloud
+  state.indicators.ichimoku = prices.length >= 52 ? calculateIchimokuCloud(highs, lows, prices) : null;
+
+  // ADX
+  state.indicators.adx = prices.length >= 28 ? calculateADX(highs, lows, prices) : null;
+
+  // Volume Profile
+  state.indicators.volumeProfile = calculateVolumeProfile(prices, volumes);
+
+  // Swing points
+  const swings = calculateSwingPoints(state.historicalData);
+  state.lastSwingHigh = swings.swingHigh;
+  state.lastSwingLow = swings.swingLow;
 }
 
-// Calcular precisión histórica mejorada
-function calculateHistoricalAccuracy() {
-    if (predictionHistory.length < 2) return 0;
-    
-    let accuracySum = 0;
-    let validEntries = 0;
-    
-    // Calcular precisión para cada predicción con datos posteriores
-    for (let i = 0; i < predictionHistory.length - 1; i++) {
-        const prediction = predictionHistory[i];
-        const nextData = predictionHistory[i + 1];
-        
-        // Calcular diferencia porcentual
-        const priceDiff = Math.abs(prediction.predictedPrice - nextData.actualPrice);
-        const accuracy = (1 - (priceDiff / prediction.predictedPrice)) * 100;
-        
-        // Solo considerar predicciones válidas
-        if (!isNaN(accuracy)) {
-            accuracySum += Math.max(0, accuracy); // No permitir valores negativos
-            validEntries++;
-        }
-    }
-    
-    return validEntries > 0 ? accuracySum / validEntries : 0;
+// Advanced indicator: Ichimoku Cloud
+function calculateIchimokuCloud(highs, lows, closes) {
+  const conversionPeriod = 9;
+  const basePeriod = 26;
+  const leadingSpanPeriod = 52;
+
+  if (closes.length < leadingSpanPeriod) return null;
+
+  // Conversion Line (Tenkan-sen)
+  const conversionLine = [];
+  for (let i = conversionPeriod - 1; i < closes.length; i++) {
+    const high = Math.max(...highs.slice(i - conversionPeriod + 1, i + 1));
+    const low = Math.min(...lows.slice(i - conversionPeriod + 1, i + 1));
+    conversionLine.push((high + low) / 2);
+  }
+
+  // Base Line (Kijun-sen)
+  const baseLine = [];
+  for (let i = basePeriod - 1; i < closes.length; i++) {
+    const high = Math.max(...highs.slice(i - basePeriod + 1, i + 1));
+    const low = Math.min(...lows.slice(i - basePeriod + 1, i + 1));
+    baseLine.push((high + low) / 2);
+  }
+
+  // Leading Span A (Senkou Span A)
+  const leadingSpanA = [];
+  for (let i = basePeriod - 1; i < conversionLine.length; i++) {
+    leadingSpanA.push((conversionLine[i] + baseLine[i]) / 2);
+  }
+
+  // Leading Span B (Senkou Span B)
+  const leadingSpanB = [];
+  for (let i = leadingSpanPeriod - 1; i < closes.length; i++) {
+    const high = Math.max(...highs.slice(i - leadingSpanPeriod + 1, i + 1));
+    const low = Math.min(...lows.slice(i - leadingSpanPeriod + 1, i + 1));
+    leadingSpanB.push((high + low) / 2);
+  }
+
+  return {
+    conversion: conversionLine[conversionLine.length - 1],
+    base: baseLine[baseLine.length - 1],
+    spanA: leadingSpanA,
+    spanB: leadingSpanB,
+    trend: closes[closes.length - 1] > leadingSpanA[leadingSpanA.length - 1] &&
+           closes[closes.length - 1] > leadingSpanB[leadingSpanB.length - 1] ?
+           'Alcista' : 'Bajista'
+  };
 }
 
-// Inicializar gráfico
-function initChart() {
-    if (historicalData.length === 0) {
-        console.warn('No hay datos históricos para mostrar el gráfico');
-        return;
-    }
+// Advanced indicator: ADX (Average Directional Index)
+function calculateADX(highs, lows, closes, period = 14) {
+  if (highs.length < period * 2 || lows.length < period * 2 || closes.length < period * 2) {
+    return null;
+  }
 
-    const ctx = document.getElementById('price-chart').getContext('2d');
-    if (priceChart) {
-        priceChart.destroy();
-    }
+  const plusDM = [0];
+  const minusDM = [0];
+  const trueRanges = [0];
 
-    // Calcular límites del eje Y
-    const values = historicalData.map(d => d.y);
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const range = maxValue - minValue;
-    const allValues = predictedPrice ? [...values, predictedPrice] : values;
-    const minBound = Math.min(...allValues) - range * 0.05;
-    const maxBound = Math.max(...allValues) + range * 0.05;
+  for (let i = 1; i < highs.length; i++) {
+    const upMove = highs[i] - highs[i-1];
+    const downMove = lows[i-1] - lows[i];
 
-    // Preparar datos para predicción
-    let predictionData = [];
-    let annotations = [];
-    
-    if (currentPrice && currentPriceTimestamp && predictedPrice) {
-        const futureDate = new Date(currentPriceTimestamp);
-        const daysToAdd = parseInt(currentTimeframe) / 10;
-        futureDate.setDate(futureDate.getDate() + daysToAdd);
+    plusDM.push(upMove > downMove && upMove > 0 ? upMove : 0);
+    minusDM.push(downMove > upMove && downMove > 0 ? downMove : 0);
 
-        predictionData = [
-            { x: currentPriceTimestamp, y: currentPrice },
-            { x: futureDate, y: predictedPrice }
-        ];
+    trueRanges.push(Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i-1]),
+      Math.abs(lows[i] - closes[i-1])
+    ));
+  }
 
-        // Añadir línea horizontal para el precio predicho
-        annotations.push({
-            type: 'line',
-            yMin: predictedPrice,
-            yMax: predictedPrice,
-            borderColor: 'rgba(0, 230, 195, 0.8)',
-            borderWidth: 2,
-            borderDash: [5, 5],
-            label: {
-                enabled: true,
-                content: `PREDICCIÓN: $${predictedPrice.toLocaleString('en-US', {maximumFractionDigits: 2})}`,
-                backgroundColor: 'rgba(0, 230, 195, 0.8)',
-                font: { size: 12, family: 'Exo 2', weight: 'bold' },
-                color: '#0a0e17',
-                position: 'end',
-                yAdjust: predictedPrice > currentPrice ? -10 : 10
-            }
-        });
-    }
+  // Smooth the values
+  let atr = trueRanges.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
+  let plusDI = plusDM.slice(0, period).reduce((sum, val) => sum + val, 0) / period / atr * 100;
+  let minusDI = minusDM.slice(0, period).reduce((sum, val) => sum + val, 0) / period / atr * 100;
 
-    // Añadir líneas horizontales para niveles de Fibonacci
-    const maxPrice = Math.max(...historicalData.map(d => d.y));
-    const minPrice = Math.min(...historicalData.map(d => d.y));
-    const fibLevels = [
-        { level: minPrice + (maxPrice - minPrice) * 0.236, label: '23.6%' },
-        { level: minPrice + (maxPrice - minPrice) * 0.382, label: '38.2%' },
-        { level: minPrice + (maxPrice - minPrice) * 0.5, label: '50%' },
-        { level: minPrice + (maxPrice - minPrice) * 0.618, label: '61.8%' },
-        { level: minPrice + (maxPrice - minPrice) * 0.786, label: '78.6%' }
-    ];
+  const dxValues = [Math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100];
 
-    fibLevels.forEach((fib, index) => {
-        annotations.push({
-            type: 'line',
-            yMin: fib.level,
-            yMax: fib.level,
-            borderColor: 'rgba(240, 185, 11, 0.5)', // Color dorado con opacidad
-            borderWidth: 1,
-            borderDash: [3, 3],
-            label: {
-                enabled: true,
-                content: `${fib.label}: $${fib.level.toLocaleString('en-US', {maximumFractionDigits: 2})}`,
-                backgroundColor: 'rgba(240, 185, 11, 0.7)',
-                font: { size: 10, family: 'Exo 2', weight: 'normal' },
-                color: '#0a0e17',
-                position: 'start',
-                yAdjust: index % 2 === 0 ? -10 : 10 // Alternar posición para evitar solapamiento
-            }
-        });
+  for (let i = period; i < highs.length; i++) {
+    atr = (atr * (period - 1) + trueRanges[i]) / period;
+    plusDI = (plusDI * (period - 1) + plusDM[i]) / period / atr * 100;
+    minusDI = (minusDI * (period - 1) + minusDM[i]) / period / atr * 100;
+    dxValues.push(Math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100);
+  }
+
+  // Calculate ADX
+  let adx = dxValues.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
+  for (let i = period; i < dxValues.length; i++) {
+    adx = (adx * (period - 1) + dxValues[i]) / period;
+  }
+
+  return adx;
+}
+
+// Volume Profile indicator
+function calculateVolumeProfile(prices, volumes) {
+  if (prices.length < 10) return null;
+
+  // Find price range
+  const minPrice = Math.min(...prices.slice(-10));
+  const maxPrice = Math.max(...prices.slice(-10));
+  const range = maxPrice - minPrice;
+
+  if (range === 0) return 'Neutral';
+
+  // Create volume buckets
+  const buckets = new Array(10).fill(0).map((_, i) => ({
+    priceLevel: minPrice + (range * i / 10),
+    volume: 0
+  }));
+
+  // Distribute volume to buckets
+  for (let i = prices.length - 10; i < prices.length; i++) {
+    const bucketIndex = Math.min(9, Math.floor((prices[i] - minPrice) / range * 10));
+    buckets[bucketIndex].volume += volumes[i];
+  }
+
+  // Find high volume nodes
+  const sortedBuckets = [...buckets].sort((a, b) => b.volume - a.volume);
+  const highVolumeNodes = sortedBuckets.slice(0, 3);
+
+  // Determine market profile
+  const currentPrice = prices[prices.length - 1];
+  const valueArea = highVolumeNodes.reduce((sum, node) => sum + node.priceLevel, 0) / 3;
+
+  return currentPrice > valueArea ? 'Alcista' : 'Bajista';
+}
+
+function calculatePrediction() {
+  const minDataPoints = CONFIG.TIMEFRAME_MAP[state.currentTimeframe].minDataPoints;
+  if (!state.currentPrice || state.historicalData.length < minDataPoints) {
+    console.warn(`No se puede calcular predicción para ${state.currentTimeframe}: solo ${state.historicalData.length} puntos, se requieren ${minDataPoints}`);
+    state.predictedPrice = null;
+    state.confidenceLevel = 0;
+    document.getElementById('prediction-price').textContent = 'N/A';
+    document.getElementById('confidence-level').textContent = 'Confianza: 0%';
+    return;
+  }
+
+  const prices = state.historicalData.map(d => d.y);
+  const timeframeHours = CONFIG.TIMEFRAME_MAP[state.currentTimeframe].timeframeHours;
+
+  // 1. Momentum (short-term trend)
+  const shortTermData = prices.slice(-Math.min(7, prices.length));
+  const { slope } = linearRegression(shortTermData);
+  const momentum = slope / state.currentPrice;
+  const momentumFactor = 1 + (momentum * CONFIG.GOLDEN_RATIO * (timeframeHours / 720)); // Scale with timeframe
+
+  // 2. RSI
+  const rsi = state.indicators.rsi;
+  const rsiFactor = rsi ? 1 + (50 - rsi) * 0.005 : 1;
+
+  // 3. Volatility
+  const volatility = calculateVolatility(prices, timeframeHours);
+  const volatilityFactor = volatility > 30 ? 0.95 : volatility < 10 ? 1.05 : 1;
+
+  // 4. Fibonacci Levels
+  const maxPrice = state.lastSwingHigh || Math.max(...prices);
+  const minPrice = state.lastSwingLow || Math.min(...prices);
+  const priceRange = maxPrice - minPrice;
+  const threshold = Math.max(priceRange * 0.025, 100);
+  const detectedLevels = CONFIG.FIB_LEVELS.filter(level => {
+    const fibPrice = minPrice + priceRange * level;
+    return Math.abs(state.currentPrice - fibPrice) < threshold;
+  }).length;
+  const fibFactor = 1 + (detectedLevels * 0.04);
+
+  // 5. EMA Trend
+  let emaFactor = 1;
+  let emaTrend = 'Neutral';
+  if (state.indicators.ema50 && (state.indicators.ema200 || state.historicalData.length < 200)) {
+    emaTrend = state.indicators.ema50 > (state.indicators.ema200 || state.indicators.ema50) ? 'Alcista' : 'Bajista';
+    emaFactor = emaTrend === 'Alcista' ? 1.02 : 0.98;
+  }
+
+  // 6. Ichimoku Cloud
+  let ichimokuFactor = 1;
+  let ichimokuTrend = 'Neutral';
+  if (state.indicators.ichimoku) {
+    ichimokuTrend = state.indicators.ichimoku.trend;
+    ichimokuFactor = ichimokuTrend === 'Alcista' ? 1.03 : 0.97;
+  }
+
+  // 7. Volume Profile
+  let volumeProfileFactor = 1;
+  if (state.indicators.volumeProfile) {
+    volumeProfileFactor = state.indicators.volumeProfile === 'Alcista' ? 1.02 : 0.98;
+  }
+
+  // 8. Sentiment Proxy
+  const volumeTrend = calculateVolumeTrend(state.historicalData);
+  const sentimentFactor = volumeTrend > 0 ? 1.02 : volumeTrend < 0 ? 0.98 : 1;
+
+  // Combine factors with weights
+  state.predictedPrice = state.currentPrice *
+    (CONFIG.INDICATOR_WEIGHTS.momentum * momentumFactor +
+     CONFIG.INDICATOR_WEIGHTS.rsi * rsiFactor +
+     CONFIG.INDICATOR_WEIGHTS.volatility * volatilityFactor +
+     CONFIG.INDICATOR_WEIGHTS.fib * fibFactor +
+     CONFIG.INDICATOR_WEIGHTS.ema * emaFactor +
+     CONFIG.INDICATOR_WEIGHTS.ichimoku * ichimokuFactor +
+     CONFIG.INDICATOR_WEIGHTS.volume_profile * volumeProfileFactor +
+     CONFIG.INDICATOR_WEIGHTS.sentiment * sentimentFactor);
+
+  // Calculate confidence with improved alignment
+  const historicalAccuracy = calculateHistoricalAccuracy();
+  const indicatorAlignment = [
+    Math.abs(momentum) < 0.01 ? 0.9 : 1, // Relaxed penalty for low momentum
+    rsi ? (rsi > 30 && rsi < 70 ? 1 : 0.95) : 0.9, // Relaxed penalty for missing/overbought RSI
+    volatility > 30 ? 0.95 : 1, // Relaxed penalty for high volatility
+    detectedLevels > 0 ? 1.1 : 0.98, // Slightly relaxed Fibonacci penalty
+    emaFactor !== 1 ? 1.05 : 1,
+    ichimokuFactor !== 1 ? 1.05 : 0.9, // Relaxed penalty for missing Ichimoku
+    volumeProfileFactor !== 1 ? 1.05 : 0.9 // Relaxed penalty for missing volume profile
+  ].reduce((product, factor) => product * factor, 1);
+
+  // Log factors for debugging
+  console.log(`Confidence factors for ${state.currentTimeframe}:`, {
+    historicalAccuracy,
+    indicatorAlignment,
+    volatility,
+    momentum,
+    rsi,
+    detectedLevels,
+    emaTrend,
+    ichimokuTrend,
+    volumeProfile: state.indicators.volumeProfile
+  });
+
+  state.confidenceLevel = Math.min(100, Math.max(10, // Minimum confidence of 10%
+    historicalAccuracy * indicatorAlignment * Math.max(0.5, 1 - volatility / 100) * 100
+  ));
+
+  // Update UI
+  document.getElementById('prediction-price').textContent =
+    `$${state.predictedPrice.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+
+  const confidenceElement = document.getElementById('confidence-level');
+  confidenceElement.textContent = `Confianza: ${state.confidenceLevel.toFixed(0)}%`;
+
+  const confidenceClass = state.confidenceLevel > 70 ? 'confidence-high' :
+                         state.confidenceLevel > 50 ? 'confidence-medium' : 'confidence-low';
+  confidenceElement.className = `confidence-indicator ${confidenceClass}`;
+
+  // Update confidence meter
+  const confidenceFill = document.getElementById('confidence-fill');
+  confidenceFill.style.width = `${state.confidenceLevel}%`;
+  confidenceFill.className = `confidence-fill ${confidenceClass}`;
+
+  // Update sentiment display
+  const sentimentValue = document.getElementById('sentiment-value');
+  if (momentum > 0 && rsi < 70 && ichimokuTrend === 'Alcista') {
+    sentimentValue.textContent = 'Alcista';
+    sentimentValue.className = 'sentiment-value trend-up';
+  } else if (momentum < 0 && rsi > 30 && ichimokuTrend === 'Bajista') {
+    sentimentValue.textContent = 'Bajista';
+    sentimentValue.className = 'sentiment-value trend-down';
+  } else {
+    sentimentValue.textContent = 'Neutral';
+    sentimentValue.className = 'sentiment-value trend-neutral';
+  }
+
+  // Update indicators display
+  document.getElementById('ichimoku-trend').textContent = ichimokuTrend || 'N/A';
+  document.getElementById('ichimoku-trend').className = `stat-value ${
+    ichimokuTrend === 'Alcista' ? 'trend-up' : ichimokuTrend === 'Bajista' ? 'trend-down' : 'trend-neutral'
+  }`;
+
+  document.getElementById('rsi-value').textContent = rsi ? rsi.toFixed(2) : 'N/A';
+  document.getElementById('rsi-value').className = `stat-value ${
+    rsi > 70 ? 'trend-down' : rsi < 30 ? 'trend-up' : 'trend-neutral'
+  }`;
+
+  document.getElementById('volatility').textContent = `${volatility.toFixed(2)}%`;
+  document.getElementById('fib-levels').textContent = `${detectedLevels}/12`;
+  document.getElementById('adx-value').textContent = state.indicators.adx ? state.indicators.adx.toFixed(2) : 'N/A';
+  document.getElementById('volume-profile').textContent = state.indicators.volumeProfile || 'N/A';
+  document.getElementById('volume-profile').className = `stat-value ${
+    state.indicators.volumeProfile === 'Alcista' ? 'trend-up' :
+    state.indicators.volumeProfile === 'Bajista' ? 'trend-down' : 'trend-neutral'
+  }`;
+}
+
+function renderChart() {
+  const ctx = document.getElementById('price-chart');
+  if (!ctx || state.historicalData.length < 2) {
+    console.warn('No se puede renderizar el gráfico: datos insuficientes');
+    showNotification('No hay datos suficientes para mostrar el gráfico', 'error');
+    return;
+  }
+
+  if (state.priceChart) {
+    state.priceChart.destroy();
+  }
+
+  const { unit, tooltipFormat } = CONFIG.TIMEFRAME_MAP[state.currentTimeframe];
+  const prices = state.historicalData.map(d => d.y);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+
+  // Ichimoku Cloud dataset
+  const ichimokuDatasets = [];
+  if (state.indicators.ichimoku && state.indicators.ichimoku.spanA && state.indicators.ichimoku.spanB) {
+    const sliceIndex = Math.max(0, state.historicalData.length - state.indicators.ichimoku.spanA.length);
+    ichimokuDatasets.push({
+      label: 'Ichimoku Span A',
+      data: state.historicalData.slice(sliceIndex).map((d, i) => ({
+        x: d.x,
+        y: state.indicators.ichimoku.spanA[i]
+      })),
+      borderColor: 'rgba(75, 192, 192, 0.5)',
+      backgroundColor: 'rgba(75, 192, 192, 0.2)',
+      borderWidth: 1,
+      pointRadius: 0,
+      fill: {
+        target: '+1',
+        above: 'rgba(75, 192, 192, 0.2)',
+        below: 'rgba(255, 99, 132, 0.2)'
+      },
+      tension: 0
+    }, {
+      label: 'Ichimoku Span B',
+      data: state.historicalData.slice(sliceIndex).map((d, i) => ({
+        x: d.x,
+        y: state.indicators.ichimoku.spanB[i]
+      })),
+      borderColor: 'rgba(153, 102, 255, 0.5)',
+      backgroundColor: 'rgba(153, 102, 255, 0.2)',
+      borderWidth: 1,
+      pointRadius: 0,
+      fill: false,
+      tension: 0
     });
+  }
 
-    // Añadir predicciones históricas al gráfico
-    let historicalPredictions = [];
-    if (predictionHistory.length > 0) {
-        historicalPredictions = predictionHistory.map(prediction => {
-            const predictionDate = new Date(prediction.timestamp);
-            const resultDate = new Date(prediction.timestamp);
-            resultDate.setDate(resultDate.getDate() + parseInt(prediction.timeframe)/10);
-            
-            return {
-                x: resultDate,
-                y: prediction.actualPrice,
-                prediction: prediction.predictedPrice,
-                timestamp: prediction.timestamp
-            };
-        });
-    }
+  // Prediction dataset
+  let predictionDataset = [];
+  if (state.predictedPrice && state.currentPrice) {
+    const currentDate = new Date();
+    const timeframeHours = CONFIG.TIMEFRAME_MAP[state.currentTimeframe].timeframeHours;
+    const predictionDate = new Date(currentDate.getTime() + timeframeHours * 60 * 60 * 1000);
 
-    priceChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            datasets: [
-                {
-                    label: 'Precio Real',
-                    data: historicalData,
-                    borderColor: '#f0b90b',
-                    backgroundColor: 'rgba(240, 185, 11, 0.1)',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    fill: true,
-                    tension: 0.1
-                },
-                {
-                    label: 'Predicción Áurea',
-                    data: predictionData,
-                    borderColor: 'var(--prediction-color)',
-                    backgroundColor: 'rgba(0, 230, 195, 0.2)',
-                    borderWidth: 4,
-                    borderDash: [8, 4],
-                    pointRadius: [0, 0], // Sin puntos en la línea de predicción
-                    pointBackgroundColor: 'var(--prediction-color)',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2,
-                    fill: false,
-                    tension: 0,
-                    shadowOffsetX: 0,
-                    shadowOffsetY: 4,
-                    shadowBlur: 10,
-                    shadowColor: 'rgba(0, 230, 195, 0.5)'
-                },
-                {
-                    label: 'Predicciones Pasadas',
-                    data: historicalPredictions,
-                    pointBackgroundColor: 'rgba(255, 255, 255, 0.8)',
-                    pointBorderColor: '#00e6c3',
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
-                    showLine: false
-                }
-            ]
+    predictionDataset = [{
+      label: 'Predicción',
+      data: [
+        { x: currentDate, y: state.currentPrice },
+        { x: predictionDate, y: state.predictedPrice }
+      ],
+      borderColor: 'var(--chart-prediction)',
+      borderWidth: 2,
+      borderDash: [5, 5],
+      pointRadius: 0,
+      tension: 0
+    }];
+  }
+
+  // Create chart
+  state.priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: 'Precio de Bitcoin',
+          data: state.historicalData.map(d => ({ x: d.x, y: d.y })),
+          borderColor: 'var(--chart-line)',
+          backgroundColor: 'rgba(0, 0, 0, 0.05)',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.1
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    labels: {
-                        color: 'rgba(200, 200, 200, 0.7)'
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.parsed.y !== null) {
-                                label += `$${context.parsed.y.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
-                            }
-                            
-                            // Información adicional para predicciones pasadas
-                            if (context.datasetIndex === 2) {
-                                const dataPoint = historicalPredictions[context.dataIndex];
-                                const predictionDate = new Date(dataPoint.timestamp).toLocaleDateString();
-                                label += `\nPredicho: $${dataPoint.prediction.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
-                                label += `\nFecha predicción: ${predictionDate}`;
-                            }
-                            
-                            return label;
-                        }
-                    }
-                },
-                annotation: {
-                    annotations: annotations
-                }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: {
-                        unit: currentTimeframe === '7' ? 'hour' : 'day',
-                        tooltipFormat: currentTimeframe === '7' ? 'MMM dd HH:mm' : 'MMM dd',
-                        displayFormats: {
-                            day: 'MMM dd',
-                            hour: 'HH:mm'
-                        }
-                    },
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    ticks: {
-                        color: 'rgba(200, 200, 200, 0.7)',
-                        maxTicksLimit: currentTimeframe === '7' ? 12 : 10
-                    }
-                },
-                y: {
-                    position: 'right',
-                    min: minBound,
-                    max: maxBound,
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.05)'
-                    },
-                    ticks: {
-                        color: 'rgba(200, 200, 200, 0.7)',
-                        callback: function(value) {
-                            return '$' + value.toLocaleString('en-US', {maximumFractionDigits: 0});
-                        },
-                        maxTicksLimit: 8
-                    }
-                }
-            },
-            animation: {
-                duration: 500,
-                easing: 'easeOutQuart'
-            },
-            hover: {
-                mode: 'nearest',
-                intersect: false
-            }
+        ...ichimokuDatasets,
+        ...predictionDataset
+      ].filter(d => d !== null)
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: context => `$${context.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+          }
         }
-    });
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: { unit, tooltipFormat },
+          grid: { color: 'rgba(0, 0, 0, 0.05)' },
+          ticks: { maxRotation: 0, autoSkip: true }
+        },
+        y: {
+          position: 'right',
+          grid: { color: 'rgba(0, 0, 0, 0.05)' },
+          ticks: {
+            callback: value => `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+          }
+        }
+      },
+      interaction: {
+        mode: 'nearest',
+        intersect: false
+      }
+    }
+  });
+}
+
+// Helper functions
+function calculateRSI(prices, period = 14) {
+  if (prices.length < period + 1) return null;
+
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = prices[i] - prices[i-1];
+    if (diff >= 0) gains += diff;
+    else losses -= diff;
+  }
+
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+
+  for (let i = period + 1; i < prices.length; i++) {
+    const diff = prices[i] - prices[i-1];
+    avgGain = (avgGain * (period - 1) + (diff >= 0 ? diff : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+  }
+
+  const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+function calculateEMA(period, prices) {
+  if (prices.length < period) return null;
+
+  const k = 2 / (period + 1);
+  let ema = prices.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
+
+  for (let i = period; i < prices.length; i++) {
+    ema = prices[i] * k + ema * (1 - k);
+  }
+
+  return ema;
+}
+
+function calculateBollingerBands(prices, period = 20, stdDev = 2) {
+  if (prices.length < period) return null;
+
+  const sma = prices.slice(-period).reduce((sum, val) => sum + val, 0) / period;
+  const variance = prices.slice(-period).reduce((sum, val) => sum + Math.pow(val - sma, 2), 0) / period;
+  const std = Math.sqrt(variance);
+
+  return {
+    upper: sma + std * stdDev,
+    middle: sma,
+    lower: sma - std * stdDev
+  };
+}
+
+function calculateVWAP(data) {
+  if (data.length < 1) return null;
+
+  let totalVolume = 0;
+  let totalPriceVolume = 0;
+
+  for (const item of data.slice(-Math.min(20, data.length))) {
+    const typicalPrice = (item.high + item.low + item.y) / 3;
+    totalPriceVolume += typicalPrice * item.volume;
+    totalVolume += item.volume;
+  }
+
+  return totalVolume === 0 ? null : totalPriceVolume / totalVolume;
+}
+
+function calculateVolumeTrend(data) {
+  if (data.length < 10) return 0;
+
+  const volumes = data.slice(-10).map(d => d.volume);
+  const { slope } = linearRegression(volumes);
+  return slope;
+}
+
+function calculateHistoricalAccuracy() {
+  if (state.signalHistory.length < 2) return 0.85; // Increased default accuracy
+
+  let correct = 0;
+  let total = 0;
+
+  for (let i = 1; i < state.signalHistory.length; i++) {
+    const prev = state.signalHistory[i-1];
+    const actual = state.historicalData.find(d => d.x >= new Date(prev.date))?.y;
+    if (actual) {
+      const predictedChange = prev.predictedPrice - prev.currentPrice;
+      const actualChange = actual - prev.currentPrice;
+      if ((predictedChange > 0 && actualChange > 0) || (predictedChange < 0 && actualChange < 0)) {
+        correct++;
+      }
+      total++;
+    }
+  }
+
+  return total > 0 ? Math.max(0.5, correct / total) : 0.85; // Minimum 50% if some history exists
+}
+
+function linearRegression(data) {
+  if (data.length < 2) return { slope: 0, intercept: 0 };
+
+  const n = data.length;
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += data[i];
+    sumXY += i * data[i];
+    sumXX += i * i;
+  }
+
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+
+  return { slope, intercept };
+}
+
+function calculateVolatility(prices, timeframeHours) {
+  if (prices.length < 10) return 0;
+
+  const returns = [];
+  for (let i = 1; i < prices.length; i++) {
+    returns.push(Math.log(prices[i] / prices[i-1]));
+  }
+
+  const mean = returns.reduce((sum, val) => sum + val, 0) / returns.length;
+  const variance = returns.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / returns.length;
+  const periodFactor = Math.sqrt(Math.min(365 * 24, timeframeHours * 24)); // Scale by timeframe
+  return Math.sqrt(variance) * periodFactor * 100;
+}
+
+function calculateSwingPoints(data) {
+  if (data.length < 5) return { swingHigh: null, swingLow: null };
+
+  let swingHigh = data[0].high;
+  let swingLow = data[0].low;
+
+  for (let i = 2; i < data.length - 2; i++) {
+    if (data[i].high > data[i-1].high && data[i].high > data[i+1].high &&
+        data[i].high > data[i-2].high && data[i].high > data[i+2].high) {
+      swingHigh = data[i].high;
+    }
+    if (data[i].low < data[i-1].low && data[i].low < data[i+1].low &&
+        data[i].low < data[i-2].low && data[i].low < data[i+2].low) {
+      swingLow = data[i].low;
+    }
+  }
+
+  return { swingHigh, swingLow };
+}
+
+function updateSignalHistory() {
+  if (!state.predictedPrice || !state.currentPrice) return;
+
+  const newSignal = {
+    date: new Date().toISOString(),
+    timeframe: state.currentTimeframe,
+    currentPrice: state.currentPrice,
+    predictedPrice: state.predictedPrice,
+    confidence: state.confidenceLevel
+  };
+
+  state.signalHistory.push(newSignal);
+  if (state.signalHistory.length > 50) {
+    state.signalHistory.shift(); // Keep only last 50 entries
+  }
+
+  // Save to localStorage
+  localStorage.setItem('burex_signalHistory', JSON.stringify(state.signalHistory));
+
+  // Update UI
+  const historyContainer = document.getElementById('signal-history');
+  historyContainer.innerHTML = '';
+
+  if (state.signalHistory.length === 0) {
+    historyContainer.innerHTML = '<p class="empty-history">No hay datos históricos disponibles</p>';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'history-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Marco Temporal</th>
+        <th>Precio Actual</th>
+        <th>Predicción</th>
+        <th>Confianza</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${state.signalHistory.reverse().map(signal => `
+        <tr>
+          <td>${new Date(signal.date).toLocaleDateString()}</td>
+          <td>${signal.timeframe.includes('m') ? signal.timeframe.toUpperCase() :
+                 signal.timeframe.includes('h') ? signal.timeframe.toUpperCase() :
+                 `${signal.timeframe}D`}</td>
+          <td>$${signal.currentPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
+          <td>$${signal.predictedPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
+          <td>${signal.confidence.toFixed(0)}%</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+
+  historyContainer.appendChild(table);
+}
+
+function updateUIWithCachedData() {
+  const cachedPrice = localStorage.getItem('burex_currentPrice');
+  const cachedHistory = localStorage.getItem(`burex_historicalData_${state.currentTimeframe}`);
+  const cachedSignals = localStorage.getItem('burex_signalHistory');
+
+  if (cachedPrice) {
+    try {
+      const { data } = JSON.parse(cachedPrice);
+      state.currentPrice = data.RAW.BTC.USD.PRICE;
+      updatePriceDisplay(data.RAW.BTC.USD);
+    } catch (error) {
+      console.error('Error parsing cached price:', error);
+    }
+  }
+
+  if (cachedHistory) {
+    try {
+      const { data } = JSON.parse(cachedHistory);
+      state.historicalData = data.Data.Data
+        .filter(item => item.close > 0)
+        .map(item => ({
+          x: new Date(item.time * 1000),
+          y: item.close,
+          volume: item.volumeto,
+          high: item.high,
+          low: item.low,
+          open: item.open
+        }));
+      console.log(`Loaded ${state.historicalData.length} cached data points for ${state.currentTimeframe}`);
+      calculateIndicators();
+      calculatePrediction();
+    } catch (error) {
+      console.error('Error parsing cached history:', error);
+    }
+  }
+
+  if (cachedSignals) {
+    try {
+      state.signalHistory = JSON.parse(cachedSignals);
+      updateSignalHistory();
+    } catch (error) {
+      console.error('Error parsing cached signals:', error);
+    }
+  }
+
+  if (state.historicalData.length >= 2) {
+    renderChart();
+  }
+}
+
+function handleOnline() {
+  state.isOnline = true;
+  loadData();
+  showNotification('Conexión restaurada', 'success');
+}
+
+function handleOffline() {
+  state.isOnline = false;
+  showNotification('Sin conexión: usando datos en caché', 'warning');
+}
+
+function showNotification(message, type = 'info', duration = 3000) {
+  const notification = document.getElementById('notification');
+  const messageElement = document.getElementById('notification-message');
+
+  messageElement.textContent = message;
+  notification.className = `notification ${type} show`;
+
+  setTimeout(() => {
+    notification.className = `notification ${type}`;
+  }, duration);
+}
+
+function showLoading(message) {
+  const overlay = document.getElementById('loading-overlay');
+  const text = document.getElementById('loading-text');
+
+  text.textContent = message;
+  overlay.classList.add('active');
+}
+
+function hideLoading() {
+  const overlay = document.getElementById('loading-overlay');
+  overlay.classList.remove('active');
 }
