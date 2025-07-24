@@ -1,105 +1,143 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTC: BUREX TREND CASTER</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Burex Bitcoin Oracle Pro</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <div class="notification" id="notification">
-            <button class="close-btn">×</button>
-            <div id="notification-message"></div>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">
+          <img src="BUREX_logo.png" alt="Burex Logo" style="height: 40px;">
         </div>
-        
-        <header>
-            <div class="header-content">
-                <h1>BTC: BUREX TREND CASTER</h1>
-                <p class="subtitle">Predicciones basadas en el número áureo, análisis técnico e histórico</p>
-            </div>
-            <svg class="golden-spiral" viewBox="0 0 100 100">
-                <path d="M 50,0 A 50,50 0 0,1 100,50 L 50,50 A 0,0 0 0,0 50,50" fill="none" stroke="#f0b90b" stroke-width="0.5"/>
-                <path d="M 100,50 A 50,50 0 0,1 50,100 L 50,50 A 0,0 0 0,0 50,50" fill="none" stroke="#f0b90b" stroke-width="0.5"/>
-                <path d="M 50,100 A 50,50 0 0,1 0,50 L 50,50 A 0,0 0 0,0 50,50" fill="none" stroke="#f0b90b" stroke-width="0.5"/>
-                <path d="M 0,50 A 50,50 0 0,1 50,0 L 50,50 A 0,0 0 0,0 50,50" fill="none" stroke="#f0b90b" stroke-width="0.5"/>
-            </svg>
-        </header>
+        <h1>BTC: Burex Trend Caster Pro</h1>
+      </div>
+      <div class="header-actions">
+        <button class="theme-toggle" aria-label="Cambiar tema">
+          <i class="fas fa-moon"></i>
+        </button>
+        <button id="refresh-btn" class="refresh-btn">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+    </header>
 
-        <div class="controls">
-            <button class="timeframe-btn" data-timeframe="7">7 Días</button>
-            <button class="timeframe-btn active" data-timeframe="30">30 Días</button>
-            <button class="timeframe-btn" data-timeframe="90">90 Días</button>
-            <button class="timeframe-btn" data-timeframe="180">180 Días</button>
+    <section class="prediction-card">
+      <div class="prediction-content">
+        <div class="prediction-title">PREDICCIÓN PARA <span id="current-timeframe">7D</span></div>
+        <div class="prediction-value" id="prediction-price">$--</div>
+        <div class="confidence-indicator">
+          <div class="confidence-meter">
+            <div class="confidence-fill" id="confidence-fill"></div>
+          </div>
+          <span id="confidence-level">Confianza: --%</span>
         </div>
+      </div>
+      <div class="current-price">
+        <div class="stat-label">PRECIO ACTUAL</div>
+        <div class="stat-value" id="current-price">$--</div>
+        <div class="stat-label" id="price-change">--% (24h)</div>
+      </div>
+      <div class="market-sentiment">
+        <div class="stat-label">SENTIMIENTO</div>
+        <div class="sentiment-value" id="sentiment-value">--</div>
+      </div>
+    </section>
 
+    <div class="dashboard">
+      <div class="card chart-card">
+        <div class="card-header">
+          <h2 class="card-title"><i class="fas fa-chart-line"></i> Análisis de Bitcoin</h2>
+          <div class="timeframe-selector">
+            <button class="timeframe-btn" data-timeframe="15m">15M</button>
+            <button class="timeframe-btn" data-timeframe="1h">1H</button>
+            <button class="timeframe-btn" data-timeframe="4h">4H</button>
+            <button class="timeframe-btn" data-timeframe="12h">12H</button>
+            <button class="timeframe-btn" data-timeframe="1d">1D</button>
+            <button class="timeframe-btn active" data-timeframe="7">7D</button>
+            <button class="timeframe-btn" data-timeframe="15">15D</button>
+            <button class="timeframe-btn" data-timeframe="30">30D</button>
+            <button class="timeframe-btn" data-timeframe="90">90D</button>
+            <button class="timeframe-btn" data-timeframe="180">180D</button>
+          </div>
+        </div>
         <div class="chart-container">
-            <div class="chart-header">
-                <div class="coin-info">
-                    <div class="coin-logo">
-                        <i class="fab fa-btc"></i>
-                    </div>
-                    <div>
-                        <h2>BTC/USDT (<span id="current-timeframe">30D</span>)</h2>
-                    </div>
-                </div>
-                <div class="price-info">
-                    <div>
-                        <div class="current-price" id="current-price">$--.--</div>
-                        <div class="price-change" id="price-change">--.--% (24h)</div>
-                    </div>
-                    <div class="prediction-price" id="prediction-price">$--.--</div>
-                </div>
+          <canvas id="price-chart" aria-label="Gráfico de precios de Bitcoin"></canvas>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-color ichimoku"></span> Ichimoku Cloud</div>
+          <div class="legend-item"><span class="legend-color prediction"></span> Predicción</div>
+          <div class="legend-item"><span class="legend-color volume"></span> Volumen</div>
+        </div>
+      </div>
+
+      <div class="indicators-grid">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><i class="fas fa-calculator"></i> Indicadores Técnicos</h2>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">ICHIMOKU</div>
+              <div class="stat-value" id="ichimoku-trend">--</div>
             </div>
-            
-            <div class="chart-wrapper">
-                <div class="loading-overlay" id="loading-overlay">
-                    <div class="loading-content">
-                        <div class="loading-spinner"></div>
-                        <div class="loading-text">Cargando datos y analizando con número áureo...</div>
-                    </div>
-                </div>
-                <canvas id="price-chart"></canvas>
+            <div class="stat-card">
+              <div class="stat-label">RSI (14D)</div>
+              <div class="stat-value" id="rsi-value">--</div>
             </div>
-            
-            <div class="prediction-details">
-                <div class="detail-card">
-                    <h3><i class="fas fa-chart-line"></i> Precisión Histórica</h3>
-                    <div class="value" id="accuracy-rate">--.--%</div>
-                    <div class="accuracy-bar">
-                        <div class="accuracy-fill" id="accuracy-bar-fill"></div>
-                    </div>
-                </div>
-                <div class="detail-card">
-                    <h3><i class="fas fa-bolt"></i> Momentum Áureo</h3>
-                    <div class="value" id="golden-momentum">--.--%</div>
-                </div>
-                <div class="detail-card">
-                    <h3><i class="fas fa-project-diagram"></i> Niveles Fibonacci</h3>
-                    <div class="value" id="fib-levels">0/5 detectados</div>
-                </div>
-                <div class="detail-card">
-                    <h3><i class="fas fa-database"></i> Datos Analizados</h3>
-                    <div class="value" id="data-points">-- puntos</div>
-                </div>
+            <div class="stat-card">
+              <div class="stat-label">VOLATILIDAD</div>
+              <div class="stat-value" id="volatility">--%</div>
             </div>
-            
-            <div class="golden-ratio-info">
-                <i class="fas fa-calculator"></i>
-                <span>Ratio Áureo aplicado: <span class="ratio-value">1.618</span></span>
+            <div class="stat-card">
+              <div class="stat-label">FIBONACCI</div>
+              <div class="stat-value" id="fib-levels">0/12</div>
             </div>
+            <div class="stat-card">
+              <div class="stat-label">ADX</div>
+              <div class="stat-value" id="adx-value">--</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">VOLUMEN PROFILE</div>
+              <div class="stat-value" id="volume-profile">--</div>
+            </div>
+          </div>
         </div>
 
-        <div class="footer">
-            <p>Golden Crypto Predictor PRO • Datos en tiempo real de CryptoCompare • Algoritmo basado en número áureo</p>
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title"><i class="fas fa-history"></i> Historial de Predicciones</h2>
+          </div>
+          <div class="history-container" id="signal-history">
+            <p class="empty-history">No hay datos históricos disponibles</p>
+          </div>
         </div>
+      </div>
     </div>
 
-    <script src="script.js"></script>
+    <footer>
+      <p>Burex Bitcoin Oracle Pro v5.0 - Predicciones avanzadas con análisis técnico</p>
+      <p>© 2025 Todos los derechos reservados | Datos actualizados cada 5 minutos</p>
+    </footer>
+  </div>
+
+  <div class="notification" id="notification" role="alert">
+    <span id="notification-message">Cargando datos...</span>
+  </div>
+
+  <div class="loading-overlay" id="loading-overlay" role="status" aria-live="polite">
+    <div class="loader"></div>
+    <div class="loading-text" id="loading-text">Conectando con CryptoCompare API...</div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
