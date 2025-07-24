@@ -1,5 +1,3 @@
-// script.js
-
 // Optimized configuration
 const CONFIG = {
   CRYPTOCOMPARE_API: 'https://min-api.cryptocompare.com/data',
