@@ -73,6 +73,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initUI() {
+  // Mobile menu toggle
+  document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+    document.getElementById('header-controls').classList.toggle('active');
+  });
+
   // Timeframe buttons
   document.querySelectorAll('.timeframe-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -164,6 +169,9 @@ async function loadData() {
 
     // Fetch historical data
     await fetchHistoricalData();
+
+    // Load key metrics
+    await updateKeyMetrics();
 
     // Load key statistics
     const keyStats = await fetchKeyStatistics();
@@ -304,6 +312,59 @@ async function fetchKeyStatistics() {
     console.error('Error fetching key statistics:', error);
   }
   return null;
+}
+
+async function updateKeyMetrics() {
+  try {
+    // Fetch volatility data
+    const volatilityData = await fetchWithCache(
+      `${CONFIG.CRYPTOCOMPARE_API}/volatility?fsym=BTC&tsym=USD&period=1`,
+      'burex_volatility'
+    );
+    
+    // Fetch dominance data
+    const dominanceData = await fetchWithCache(
+      `${CONFIG.CRYPTOCOMPARE_API}/dominance?fsym=BTC&tsym=USD`,
+      'burex_dominance'
+    );
+    
+    // Fetch volume data
+    const volumeData = await fetchWithCache(
+      `${CONFIG.CRYPTOCOMPARE_API}/pricemultifull?fsyms=BTC&tsyms=USD`,
+      'burex_volume'
+    );
+
+    // Update metrics
+    if (volatilityData.Data && volatilityData.Data.length > 0) {
+      const volatility = volatilityData.Data[0].volatility;
+      document.querySelector('.metric-card:nth-child(1) .metric-value').textContent = 
+        `${volatility.toFixed(2)}%`;
+    }
+    
+    if (dominanceData.Data && dominanceData.Data.BTC) {
+      const dominance = dominanceData.Data.BTC.dominance;
+      document.querySelector('.metric-card:nth-child(2) .metric-value').textContent = 
+        `${dominance.toFixed(2)}%`;
+    }
+    
+    if (volumeData.RAW?.BTC?.USD) {
+      const volume = volumeData.RAW.BTC.USD.VOLUME24HOUR;
+      const volumeInBillions = volume / 1000000000;
+      document.querySelector('.metric-card:nth-child(3) .metric-value').textContent = 
+        `$${volumeInBillions.toFixed(2)}B`;
+    }
+    
+    // Calculate success rate (using our historical accuracy)
+    const accuracy = document.getElementById('historical-accuracy').textContent;
+    if (accuracy) {
+      document.querySelector('.metric-card:nth-child(4) .metric-value').textContent = 
+        accuracy;
+    }
+    
+  } catch (error) {
+    console.error('Error updating key metrics:', error);
+    showNotification('Error actualizando métricas clave', 'error');
+  }
 }
 
 function updatePriceDisplay(priceData) {
