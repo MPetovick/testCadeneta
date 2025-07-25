@@ -3,272 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Burex Trend Caster - Predicción de Bitcoin</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/@popperjs/core@2"></script>
-  <script src="https://unpkg.com/tippy.js@6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <title>Burex Bitcoin Oracle Pro v1.0</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="dark-theme">
-  <header class="header">
-    <div class="header-top">
-      <h1><i class="fas fa-chart-line"></i> Burex Trend Caster</h1>
-      <button class="mobile-menu-btn" id="mobile-menu-btn">
-        <i class="fas fa-bars"></i>
-      </button>
-    </div>
-    
-    <div class="header-controls" id="header-controls">
-      <div class="asset-selector">
-        <button class="asset-btn active" data-asset="btc">
-          <i class="fab fa-bitcoin"></i> Bitcoin
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fab fa-bitcoin"></i>
+        </div>
+        <div class="logo-text">
+          <div class="logo-title">BTC: Burex Trend Caster Pro</div>
+          <div class="logo-subtitle">Sistema de predicción de Bitcoin con análisis avanzado</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="action-btn" id="refresh-btn">
+          <i class="fas fa-sync-alt"></i> Actualizar
+        </button>
+        <button class="theme-toggle" aria-label="Cambiar tema">
+          <i class="fas fa-moon"></i>
         </button>
       </div>
-      <button class="theme-toggle" role="button" aria-label="Cambiar entre tema claro y oscuro">
-        <i class="fas fa-sun" aria-hidden="true"></i>
-      </button>
-      <button id="backtest-btn" class="backtest-btn" role="button" aria-label="Abrir backtesting">
-        <i class="fas fa-vial" aria-hidden="true"></i> <span class="btn-text">Backtest</span>
-      </button>
-      <button id="refresh-btn" class="refresh-btn" role="button" aria-label="Actualizar datos">
-        <i class="fas fa-sync-alt" aria-hidden="true"></i> <span class="btn-text">Actualizar</span>
-      </button>
-      <button id="config-btn" class="config-btn" role="button" aria-label="Abrir configuración">
-        <i class="fas fa-cog" aria-hidden="true"></i> <span class="btn-text">Config</span>
-      </button>
-    </div>
-  </header>
+    </header>
 
-  <main class="main-content">
-    <!-- Notificación -->
-    <div id="notification" class="notification">
-      <span id="notification-message"></span>
-    </div>
-
-    <!-- Modal de Configuración -->
-    <div id="config-modal" class="config-modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3><i class="fas fa-cog"></i> Configuración de Indicadores</h3>
-          <button id="close-modal" class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <form id="indicator-weights-form" role="form" aria-label="Configurar ponderaciones de indicadores">
-            <div class="stats-grid">
-              <div class="stat-card">
-                <label for="momentum-weight" class="stat-label">Impulso</label>
-                <input type="number" id="momentum-weight" min="0" max="1" step="0.01" value="0.20" aria-label="Ponderación del indicador de impulso">
-                <div class="progress-container">
-                  <div class="progress-bar" style="width: 20%"></div>
-                </div>
-              </div>
-              <div class="stat-card">
-                <label for="rsi-weight" class="stat-label">RSI</label>
-                <input type="number" id="rsi-weight" min="0" max="1" step="0.01" value="0.15" aria-label="Ponderación del indicador RSI">
-                <div class="progress-container">
-                  <div class="progress-bar" style="width: 15%"></div>
-                </div>
-              </div>
-              <div class="stat-card">
-                <label for="volatility-weight" class="stat-label">Volatilidad</label>
-                <input type="number" id="volatility-weight" min="0" max="1" step="0.01" value="0.10" aria-label="Ponderación del indicador de volatilidad">
-                <div class="progress-container">
-                  <div class="progress-bar" style="width: 10%"></div>
-                </div>
-              </div>
-              <div class="stat-card">
-                <label for="fib-weight" class="stat-label">Fibonacci</label>
-                <input type="number" id="fib-weight" min="0" max="1" step="0.01" value="0.15" aria-label="Ponderación del indicador de Fibonacci">
-                <div class="progress-container">
-                  <div class="progress-bar" style="width: 15%"></div>
-                </div>
-              </div>
-              <div class="stat-card">
-                <label for="ema-weight" class="stat-label">EMA</label>
-                <input type="number" id="ema-weight" min="0" max="1" step="0.01" value="0.10" aria-label="Ponderación del indicador EMA">
-                <div class="progress-container">
-                  <div class="progress-bar" style="width: 10%"></div>
-                </div>
-              </div>
-              <div class="stat-card">
-                <label for="ichimoku-weight" class="stat-label">Ichimoku</label>
-                <input type="number" id="ichimoku-weight" min="0" max="1" step="0.01" value="0.15" aria-label="Ponderación del indicador Ichimoku">
-                <div class="progress-container">
-                  <div class="progress-bar" style="width: 15%"></div>
-                </div>
-              </div>
-              <div class="stat-card">
-                <label for="volume-profile-weight" class="stat-label">Perfil de Volumen</label>
-                <input type="number" id="volume-profile-weight" min="0" max="1" step="0.01" value="0.10" aria-label="Ponderación del indicador de perfil de volumen">
-                <div class="progress-container">
-                  <div class="progress-bar" style="width: 10%"></div>
-                </div>
-              </div>
-              <div class="stat-card">
-                <label for="sentiment-weight" class="stat-label">Sentimiento</label>
-                <input type="number" id="sentiment-weight" min="0" max="1" step="0.01" value="0.05" aria-label="Ponderación del indicador de sentimiento">
-                <div class="progress-container">
-                  <div class="progress-bar" style="width: 5%"></div>
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="submit" class="corporate-btn">Guardar Configuración</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal de Backtesting -->
-    <div id="backtest-modal" class="config-modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3><i class="fas fa-vial"></i> Backtesting</h3>
-          <button id="close-backtest-modal" class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <form id="backtest-form" role="form" aria-label="Ejecutar backtesting del modelo">
-            <div class="stats-grid">
-              <div class="stat-card">
-                <label for="backtest-start" class="stat-label">Fecha de Inicio</label>
-                <input type="date" id="backtest-start" aria-label="Fecha de inicio para backtesting">
-              </div>
-              <div class="stat-card">
-                <label for="backtest-end" class="stat-label">Fecha de Fin</label>
-                <input type="date" id="backtest-end" aria-label="Fecha de fin para backtesting">
-              </div>
-              <div class="stat-card">
-                <button type="submit" class="corporate-btn" aria-label="Ejecutar backtesting">Ejecutar Backtest</button>
-              </div>
-            </div>
-          </form>
-          <div id="backtest-results" class="stats-grid"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Key Metrics -->
-    <section class="key-metrics">
-      <div class="metric-card">
-        <div class="metric-header">
-          <i class="fas fa-bolt"></i>
-          <h3>Volatilidad Actual</h3>
-        </div>
-        <div class="metric-value">3.2%</div>
-        <div class="metric-trend down">
-          <i class="fas fa-arrow-down"></i>
-          <span>0.4% desde ayer</span>
-        </div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header">
-          <i class="fas fa-chart-pie"></i>
-          <h3>Dominancia BTC</h3>
-        </div>
-        <div class="metric-value">42.8%</div>
-        <div class="metric-trend up">
-          <i class="fas fa-arrow-up"></i>
-          <span>1.2% desde ayer</span>
-        </div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header">
-          <i class="fas fa-exchange-alt"></i>
-          <h3>Volumen 24h</h3>
-        </div>
-        <div class="metric-value">$42.8B</div>
-        <div class="metric-trend up">
-          <i class="fas fa-arrow-up"></i>
-          <span>8.7% desde ayer</span>
-        </div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header">
-          <i class="fas fa-percentage"></i>
-          <h3>Tasa de Éxito</h3>
-        </div>
-        <div class="metric-value">92.5%</div>
-        <div class="metric-trend">
-          <i class="fas fa-minus"></i>
-          <span>Estable</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Sección de Predicción Rediseñada -->
     <section class="prediction-section">
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title"><i class="fas fa-chart-line"></i> Predicción de Precio</h2>
-          <span id="current-timeframe">1H</span>
+      <div class="prediction-card">
+        <div class="prediction-header">
+          <div class="prediction-title">Predicción de Precio</div>
+          <div class="prediction-timeframe">
+            <i class="fas fa-calendar-alt"></i>
+            <span id="current-timeframe">1H</span>
+          </div>
         </div>
         <div class="prediction-content">
-          <div class="prediction-grid">
-            <div class="price-display">
-              <span id="current-price">Cargando...</span>
-              <span id="price-change" class="price-change"></span>
+          <div class="price-container">
+            <div class="current-price-group">
+              <div class="price-label">PRECIO ACTUAL</div>
+              <div class="current-price" id="current-price">$--</div>
+              <div class="price-change" id="price-change">--% (24h)</div>
             </div>
-            <div class="prediction-card">
-              <div class="prediction-value">
-                <span class="stat-label">Precio Predicho</span>
-                <span id="prediction-price">N/A</span>
+            <div class="prediction-price-group">
+              <div class="prediction-label">PREDICCIÓN</div>
+              <div class="prediction-value" id="prediction-price">$--</div>
+            </div>
+          </div>
+          <div class="confidence-container">
+            <div class="confidence-level">
+              <div class="confidence-text">Confianza:</div>
+              <div class="confidence-dot" id="confidence-dot"></div>
+            </div>
+            <div class="confidence-bar">
+              <div class="confidence-fill" id="confidence-fill"></div>
+            </div>
+            <div class="confidence-value" id="confidence-level">--%</div>
+          </div>
+          <div class="sentiment-indicator" id="sentiment-indicator">
+            <i class="fas fa-bullhorn"></i>
+            <span id="sentiment-text">Cargando análisis de sentimiento...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="prediction-card">
+        <div class="prediction-header">
+          <div class="prediction-title">Indicador Áureo</div>
+          <i class="fas fa-chart-pie"></i>
+        </div>
+        <div class="prediction-content">
+          <div class="indicators-container">
+            <div class="indicator-card">
+              <div class="indicator-header">
+                <div class="indicator-name">IMPULSO ÁUREO</div>
+                <div class="indicator-icon">
+                  <i class="fas fa-bolt"></i>
+                </div>
               </div>
-              <div class="confidence-gauge">
-                <svg width="120" height="120" viewBox="0 0 120 120" class="gauge">
-                  <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255, 255, 255, 0.1)" stroke-width="12" />
-                  <circle cx="60" cy="60" r="54" fill="none" stroke="#00D2FF" stroke-width="12" stroke-dasharray="339.292" stroke-dashoffset="339.292" transform="rotate(-90 60 60)" id="confidence-circle" />
-                  <text x="60" y="65" text-anchor="middle" font-size="20" font-weight="bold" id="confidence-text">0%</text>
-                </svg>
-                <span class="stat-label">Confianza</span>
+              <div class="indicator-value" id="golden-momentum">--%</div>
+              <div class="indicator-trend trend-up" id="golden-trend">
+                <i class="fas fa-arrow-up"></i> <span>Alcista</span>
+              </div>
+            </div>
+            <div class="indicator-card">
+              <div class="indicator-header">
+                <div class="indicator-name">NIVELES FIB</div>
+                <div class="indicator-icon">
+                  <i class="fas fa-wave-square"></i>
+                </div>
+              </div>
+              <div class="indicator-value" id="fib-levels">0/12</div>
+              <div class="indicator-trend trend-neutral" id="fib-trend">
+                <i class="fas fa-arrows-alt-h"></i> <span>Neutral</span>
               </div>
             </div>
           </div>
-          
-          <div class="indicators-grid">
+          <div class="indicators-container">
             <div class="indicator-card">
-              <span class="indicator-label"><i class="fas fa-cloud"></i> Ichimoku</span>
-              <span id="ichimoku-trend" class="indicator-value trend-neutral">N/A</span>
-              <div class="indicator-progress">
-                <div class="indicator-progress-bar" style="width: 0%; background: var(--success);"></div>
+              <div class="indicator-header">
+                <div class="indicator-name">PRECISIÓN</div>
+                <div class="indicator-icon">
+                  <i class="fas fa-bullseye"></i>
+                </div>
+              </div>
+              <div class="indicator-value" id="accuracy-rate">--%</div>
+              <div class="indicator-trend trend-up" id="accuracy-trend">
+                <i class="fas fa-arrow-up"></i> <span>Mejorando</span>
               </div>
             </div>
             <div class="indicator-card">
-              <span class="indicator-label"><i class="fas fa-wave-square"></i> RSI</span>
-              <span id="rsi-value" class="indicator-value">N/A</span>
-              <div class="indicator-progress">
-                <div class="indicator-progress-bar" style="width: 0%; background: var(--warning);"></div>
+              <div class="indicator-header">
+                <div class="indicator-name">RSI</div>
+                <div class="indicator-icon">
+                  <i class="fas fa-tachometer-alt"></i>
+                </div>
               </div>
-            </div>
-            <div class="indicator-card">
-              <span class="indicator-label"><i class="fas fa-ruler-combined"></i> Fibonacci</span>
-              <span id="fib-levels" class="indicator-value">N/A</span>
-              <div class="indicator-progress">
-                <div class="indicator-progress-bar" style="width: 0%; background: var(--corporate-accent);"></div>
-              </div>
-            </div>
-            <div class="indicator-card">
-              <span class="indicator-label"><i class="fas fa-chart-bar"></i> Volumen</span>
-              <span id="volume-profile" class="indicator-value trend-neutral">N/A</span>
-              <div class="indicator-progress">
-                <div class="indicator-progress-bar" style="width: 0%; background: var(--success);"></div>
-              </div>
-            </div>
-            <div class="indicator-card">
-              <span class="indicator-label"><i class="fas fa-bolt"></i> Volatilidad</span>
-              <span id="volatility" class="indicator-value">N/A</span>
-              <div class="indicator-progress">
-                <div class="indicator-progress-bar" style="width: 0%; background: var(--warning);"></div>
-              </div>
-            </div>
-            <div class="indicator-card">
-              <span class="indicator-label"><i class="fas fa-tachometer-alt"></i> ADX</span>
-              <span id="adx-value" class="indicator-value">N/A</span>
-              <div class="indicator-progress">
-                <div class="indicator-progress-bar" style="width: 0%; background: var(--success);"></div>
+              <div class="indicator-value" id="rsi-value">--</div>
+              <div class="indicator-trend trend-neutral" id="rsi-trend">
+                <i class="fas fa-arrows-alt-h"></i> <span>Neutral</span>
               </div>
             </div>
           </div>
@@ -276,87 +133,171 @@
       </div>
     </section>
 
-    <!-- Gráfico de Precios -->
-    <section class="chart-section">
+    <div class="dashboard">
       <div class="card">
         <div class="card-header">
-          <h2 class="card-title"><i class="fas fa-chart-area"></i> Gráfico de Precios</h2>
-          <div class="timeframe-selector-container">
-            <div class="timeframe-selector" role="radiogroup" aria-label="Seleccionar marco temporal">
-              <button class="timeframe-btn active" data-timeframe="15m" role="radio" aria-checked="true" aria-label="Marco temporal de 15 minutos">15M</button>
-              <button class="timeframe-btn" data-timeframe="1h" role="radio" aria-checked="false" aria-label="Marco temporal de 1 hora">1H</button>
-              <button class="timeframe-btn" data-timeframe="4h" role="radio" aria-checked="false" aria-label="Marco temporal de 4 horas">4H</button>
-              <button class="timeframe-btn" data-timeframe="1d" role="radio" aria-checked="false" aria-label="Marco temporal de 1 día">1D</button>
-              <button class="timeframe-btn" data-timeframe="7" role="radio" aria-checked="false" aria-label="Marco temporal de 7 días">7D</button>
-              <button class="timeframe-btn" data-timeframe="30" role="radio" aria-checked="false" aria-label="Marco temporal de 30 días">30D</button>
-            </div>
+          <h2 class="card-title"><i class="fas fa-chart-line"></i> Análisis Técnico Avanzado</h2>
+          <div class="card-actions">
+            <button class="card-action-btn" title="MACD">
+              <i class="fas fa-wave-square"></i>
+            </button>
+            <button class="card-action-btn" title="Bollinger Bands">
+              <i class="fas fa-compress-alt"></i>
+            </button>
+            <button class="card-action-btn" title="Fibonacci">
+              <i class="fas fa-percentage"></i>
+            </button>
           </div>
         </div>
         <div class="chart-container">
-          <canvas id="price-chart" aria-label="Gráfico de precios de Bitcoin con predicción y Nube de Ichimoku" role="img"></canvas>
+          <canvas id="price-chart" aria-label="Gráfico de precios de Bitcoin con análisis técnico"></canvas>
+        </div>
+        <div class="timeframe-selector">
+          <button class="timeframe-btn active" data-timeframe="1H">1H</button>
+          <button class="timeframe-btn" data-timeframe="4H">4H</button>
+          <button class="timeframe-btn" data-timeframe="6H">6H</button>
+          <button class="timeframe-btn" data-timeframe="12H">12H</button>
+          <button class="timeframe-btn" data-timeframe="1D">1D</button>
+          <button class="timeframe-btn" data-timeframe="1W">1W</button>
+          <button class="timeframe-btn" data-timeframe="30D">30D</button>
         </div>
       </div>
-    </section>
 
-    <!-- Análisis Comparativo -->
-    <section class="comparative-section">
       <div class="card">
         <div class="card-header">
-          <h2 class="card-title"><i class="fas fa-chart-radar"></i> Análisis Comparativo</h2>
-        </div>
-        <div class="comparative-grid">
-          <div class="stat-card">
-            <span class="stat-label">Precisión Histórica</span>
-            <span id="historical-accuracy">N/A</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Tasa de Éxito</span>
-            <span id="success-rate">N/A</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Retorno Anual</span>
-            <span id="annual-return">N/A</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">Riesgo/Recompensa</span>
-            <span id="risk-reward" class="indicator-value trend-neutral">1:2.8</span>
+          <h2 class="card-title"><i class="fas fa-calculator"></i> Indicadores Clave</h2>
+          <div class="card-actions">
+            <button class="card-action-btn" title="Actualizar">
+              <i class="fas fa-sync-alt"></i>
+            </button>
           </div>
         </div>
-        <div class="chart-container">
-          <canvas id="comparative-chart" aria-label="Gráfico comparativo del rendimiento del algoritmo vs Bitcoin" role="img"></canvas>
+        <div class="indicators-container">
+          <div class="indicator-card">
+            <div class="indicator-header">
+              <div class="indicator-name">VOLATILIDAD</div>
+              <div class="indicator-icon">
+                <i class="fas fa-wind"></i>
+              </div>
+            </div>
+            <div class="indicator-value" id="volatility">--%</div>
+            <div class="indicator-trend trend-down" id="volatility-trend">
+              <i class="fas fa-arrow-down"></i> <span>Decreciente</span>
+            </div>
+          </div>
+          <div class="indicator-card">
+            <div class="indicator-header">
+              <div class="indicator-name">TENDENCIA EMA</div>
+              <div class="indicator-icon">
+                <i class="fas fa-project-diagram"></i>
+              </div>
+            </div>
+            <div class="indicator-value" id="ema-trend">--</div>
+            <div class="indicator-trend trend-up" id="ema-trend-indicator">
+              <i class="fas fa-arrow-up"></i> <span>Alcista</span>
+            </div>
+          </div>
+          <div class="indicator-card">
+            <div class="indicator-header">
+              <div class="indicator-name">MACD</div>
+              <div class="indicator-icon">
+                <i class="fas fa-exchange-alt"></i>
+              </div>
+            </div>
+            <div class="indicator-value" id="macd-value">--</div>
+            <div class="indicator-trend trend-up" id="macd-trend">
+              <i class="fas fa-arrow-up"></i> <span>Compra</span>
+            </div>
+          </div>
+          <div class="indicator-card">
+            <div class="indicator-header">
+              <div class="indicator-name">ICHIMOKU</div>
+              <div class="indicator-icon">
+                <i class="fas fa-cloud"></i>
+              </div>
+            </div>
+            <div class="indicator-value" id="ichimoku-value">--</div>
+            <div class="indicator-trend trend-up" id="ichimoku-trend">
+              <i class="fas fa-arrow-up"></i> <span>Alcista</span>
+            </div>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- Historial de Señales -->
-    <section class="history-section">
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title"><i class="fas fa-history"></i> Historial de Señales</h2>
-          <button id="export-btn" class="corporate-btn" role="button" aria-label="Exportar historial de señales">
-            <i class="fas fa-download" aria-hidden="true"></i> <span class="btn-text">Exportar</span>
-          </button>
-        </div>
-        <div class="history-content">
-          <div class="table-container">
-            <table class="history-table" aria-label="Tabla de historial de señales">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Precio</th>
-                  <th>Predicción</th>
-                  <th>Confianza</th>
-                  <th>Tiempo</th>
-                  <th>Resultado</th>
-                </tr>
-              </thead>
-              <tbody id="signal-history"></tbody>
-            </table>
+    <div class="advanced-section">
+      <div class="analysis-card">
+        <h2 class="analysis-title"><i class="fas fa-brain"></i> Análisis Predictivo</h2>
+        <div class="analysis-content">
+          <div class="analysis-item">
+            <div class="analysis-label">Modelo de Predicción</div>
+            <div class="analysis-value">Burex v4.5</div>
+            <div class="analysis-description">Combinación ponderada de indicadores técnicos</div>
+          </div>
+          <div class="analysis-item">
+            <div class="analysis-label">Backtesting (30D)</div>
+            <div class="analysis-value" id="backtesting-accuracy">--%</div>
+            <div class="analysis-description">Precisión en predicciones anteriores con datos históricos</div>
+          </div>
+          <div class="analysis-item">
+            <div class="analysis-label">Factor de Riesgo</div>
+            <div class="analysis-value" id="risk-factor">--</div>
+            <div class="analysis-description">Basado en volatilidad actual y condiciones de mercado</div>
+          </div>
+          <div class="analysis-item">
+            <div class="analysis-label">Soporte Clave</div>
+            <div class="analysis-value" id="key-support">$--</div>
+            <div class="analysis-description">Nivel de soporte principal identificado</div>
           </div>
         </div>
       </div>
-    </section>
-  </main>
+      <div class="analysis-card">
+        <h2 class="analysis-title"><i class="fas fa-lightbulb"></i> Recomendación de Trading</h2>
+        <div class="analysis-content">
+          <div class="analysis-item">
+            <div class="analysis-label">Estrategia Actual</div>
+            <div class="analysis-value" id="trading-strategy">--</div>
+            <div class="analysis-description">Basado en indicadores técnicos y análisis de sentimiento</div>
+          </div>
+          <div class="analysis-item">
+            <div class="analysis-label">Posición Óptima</div>
+            <div class="analysis-value" id="optimal-position">--</div>
+            <div class="analysis-description">Distribución recomendada para el timeframe actual</div>
+          </div>
+          <div class="analysis-item">
+            <div class="analysis-label">Take Profit</div>
+            <div class="analysis-value" id="take-profit">$--</div>
+            <div class="analysis-description">Objetivo de ganancias basado en niveles Fibonacci</div>
+          </div>
+          <div class="analysis-item">
+            <div class="analysis-label">Stop Loss</div>
+            <div class="analysis-value" id="stop-loss">$--</div>
+            <div class="analysis-description">Nivel de protección recomendado</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Burex Bitcoin Oracle Pro v1.0 - Sistema predictivo avanzado con Fibonacci</p>
+      <div class="footer-links">
+        <a href="#" class="footer-link">Documentación</a>
+        <a href="#" class="footer-link">API</a>
+        <a href="#" class="footer-link">Soporte</a>
+      </div>
+      <p>© 2025 Burex Financial Technologies. Todos los derechos reservados | Datos actualizados cada 3 minutos</p>
+    </footer>
+  </div>
+
+  <div class="notification" id="notification" role="alert">
+    <i class="fas fa-info-circle"></i>
+    <span id="notification-message">Cargando datos del mercado...</span>
+  </div>
+
+  <div class="loading-overlay" id="loading-overlay" role="status" aria-live="polite">
+    <div class="loader"></div>
+    <div class="loading-text" id="loading-text">Conectando con CryptoCompare API...</div>
+  </div>
 
   <script src="script.js"></script>
 </body>
