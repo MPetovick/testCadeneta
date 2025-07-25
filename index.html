@@ -14,8 +14,14 @@
 </head>
 <body class="dark-theme">
   <header class="header">
-    <h1><i class="fas fa-chart-line"></i> Burex Trend Caster</h1>
-    <div class="header-controls">
+    <div class="header-top">
+      <h1><i class="fas fa-chart-line"></i> Burex Trend Caster</h1>
+      <button class="mobile-menu-btn" id="mobile-menu-btn">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+    
+    <div class="header-controls" id="header-controls">
       <div class="asset-selector">
         <button class="asset-btn active" data-asset="btc">
           <i class="fab fa-bitcoin"></i> Bitcoin
@@ -25,13 +31,13 @@
         <i class="fas fa-sun" aria-hidden="true"></i>
       </button>
       <button id="backtest-btn" class="backtest-btn" role="button" aria-label="Abrir backtesting">
-        <i class="fas fa-vial" aria-hidden="true"></i> Backtest
+        <i class="fas fa-vial" aria-hidden="true"></i> <span class="btn-text">Backtest</span>
       </button>
       <button id="refresh-btn" class="refresh-btn" role="button" aria-label="Actualizar datos">
-        <i class="fas fa-sync-alt" aria-hidden="true"></i> Actualizar
+        <i class="fas fa-sync-alt" aria-hidden="true"></i> <span class="btn-text">Actualizar</span>
       </button>
       <button id="config-btn" class="config-btn" role="button" aria-label="Abrir configuración">
-        <i class="fas fa-cog" aria-hidden="true"></i> Config
+        <i class="fas fa-cog" aria-hidden="true"></i> <span class="btn-text">Config</span>
       </button>
     </div>
   </header>
@@ -275,13 +281,15 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title"><i class="fas fa-chart-area"></i> Gráfico de Precios</h2>
-          <div class="timeframe-selector" role="radiogroup" aria-label="Seleccionar marco temporal">
-            <button class="timeframe-btn active" data-timeframe="15m" role="radio" aria-checked="true" aria-label="Marco temporal de 15 minutos">15M</button>
-            <button class="timeframe-btn" data-timeframe="1h" role="radio" aria-checked="false" aria-label="Marco temporal de 1 hora">1H</button>
-            <button class="timeframe-btn" data-timeframe="4h" role="radio" aria-checked="false" aria-label="Marco temporal de 4 horas">4H</button>
-            <button class="timeframe-btn" data-timeframe="1d" role="radio" aria-checked="false" aria-label="Marco temporal de 1 día">1D</button>
-            <button class="timeframe-btn" data-timeframe="7" role="radio" aria-checked="false" aria-label="Marco temporal de 7 días">7D</button>
-            <button class="timeframe-btn" data-timeframe="30" role="radio" aria-checked="false" aria-label="Marco temporal de 30 días">30D</button>
+          <div class="timeframe-selector-container">
+            <div class="timeframe-selector" role="radiogroup" aria-label="Seleccionar marco temporal">
+              <button class="timeframe-btn active" data-timeframe="15m" role="radio" aria-checked="true" aria-label="Marco temporal de 15 minutos">15M</button>
+              <button class="timeframe-btn" data-timeframe="1h" role="radio" aria-checked="false" aria-label="Marco temporal de 1 hora">1H</button>
+              <button class="timeframe-btn" data-timeframe="4h" role="radio" aria-checked="false" aria-label="Marco temporal de 4 horas">4H</button>
+              <button class="timeframe-btn" data-timeframe="1d" role="radio" aria-checked="false" aria-label="Marco temporal de 1 día">1D</button>
+              <button class="timeframe-btn" data-timeframe="7" role="radio" aria-checked="false" aria-label="Marco temporal de 7 días">7D</button>
+              <button class="timeframe-btn" data-timeframe="30" role="radio" aria-checked="false" aria-label="Marco temporal de 30 días">30D</button>
+            </div>
           </div>
         </div>
         <div class="chart-container">
@@ -326,23 +334,25 @@
         <div class="card-header">
           <h2 class="card-title"><i class="fas fa-history"></i> Historial de Señales</h2>
           <button id="export-btn" class="corporate-btn" role="button" aria-label="Exportar historial de señales">
-            <i class="fas fa-download" aria-hidden="true"></i> Exportar
+            <i class="fas fa-download" aria-hidden="true"></i> <span class="btn-text">Exportar</span>
           </button>
         </div>
         <div class="history-content">
-          <table class="history-table" aria-label="Tabla de historial de señales">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Precio Actual</th>
-                <th>Precio Predicho</th>
-                <th>Confianza</th>
-                <th>Marco Temporal</th>
-                <th>Resultado</th>
-              </tr>
-            </thead>
-            <tbody id="signal-history"></tbody>
-          </table>
+          <div class="table-container">
+            <table class="history-table" aria-label="Tabla de historial de señales">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Precio</th>
+                  <th>Predicción</th>
+                  <th>Confianza</th>
+                  <th>Tiempo</th>
+                  <th>Resultado</th>
+                </tr>
+              </thead>
+              <tbody id="signal-history"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
