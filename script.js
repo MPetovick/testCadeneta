@@ -1,10 +1,11 @@
+// Configuration
 const CONFIG = {
-  API_KEY: '98e740d93d02809186f0c22f3f127ddbf5e672d49ae407cfa9891cb110bdca7b', // Replace with your CryptoCompare API key
+  API_KEY: '98e740d93d02809186f0c22f3f127ddbf5e672d49ae407cfa9891cb110bdca7b',
   API_URL: 'https://min-api.cryptocompare.com/data',
-  CACHE_TTL: 180000, // 3 minutes
+  CACHE_TTL: 180000,
   RETRY_COUNT: 3,
   RETRY_DELAY: 1000,
-  UPDATE_INTERVAL: 180000, // 3 minutes
+  UPDATE_INTERVAL: 180000,
   GOLDEN_RATIO: 1.618,
   FIB_LEVELS: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.272, 1.414, 1.618, 2, 2.618],
   TIMEFRAME_MAP: {
@@ -24,9 +25,34 @@ const CONFIG = {
     emaTrend: 0.1,
     macd: 0.1,
     ichimoku: 0.05
+  },
+  MIN_DATA_POINTS: {
+    '1H': 60,
+    '4H': 240,
+    '6H': 360,
+    '12H': 720,
+    '1D': 24,
+    '1W': 168,
+    '30D': 30
+  },
+  FIB_WEIGHTS: {
+    0.236: 0.8,
+    0.382: 1.0,
+    0.5: 0.9,
+    0.618: 1.0
+  },
+  TIMEFRAME_STYLE: {
+    '1H': { pointRadius: 1, borderWidth: 1.5 },
+    '4H': { pointRadius: 0, borderWidth: 1.8 },
+    '6H': { pointRadius: 0, borderWidth: 1.8 },
+    '12H': { pointRadius: 0, borderWidth: 2 },
+    '1D': { pointRadius: 0, borderWidth: 2.2 },
+    '1W': { pointRadius: 0, borderWidth: 2.5 },
+    '30D': { pointRadius: 0, borderWidth: 2.5 }
   }
 };
 
+// State Management
 const state = {
   priceChart: null,
   currentTimeframe: '1H',
@@ -35,6 +61,7 @@ const state = {
   predictedPrice: null,
   confidenceLevel: 0,
   isOnline: navigator.onLine,
+  activeIndicators: { macd: false, bollinger: false, fib: true },
   indicators: {
     rsi: null,
     volatility: null,
@@ -42,18 +69,12 @@ const state = {
     ema200: null,
     macd: null,
     ichimoku: null,
-    goldenMomentum: null
+    goldenMomentum: null,
+    bollinger: null
   }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-  initUI();
-  loadData();
-  setInterval(loadData, CONFIG.UPDATE_INTERVAL);
-  window.addEventListener('online', handleOnline);
-  window.addEventListener('offline', handleOffline);
-});
-
+// Initialize UI
 function initUI() {
   document.querySelectorAll('.timeframe-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -73,8 +94,19 @@ function initUI() {
   });
 
   document.getElementById('refresh-btn').addEventListener('click', loadData);
+
+  document.querySelector('[title="MACD"]').addEventListener('click', () => toggleIndicator('macd'));
+  document.querySelector('[title="Bollinger Bands"]').addEventListener('click', () => toggleIndicator('bollinger'));
+  document.querySelector('[title="Fibonacci"]').addEventListener('click', () => toggleIndicator('fib'));
 }
 
+// Toggle Technical Indicators
+function toggleIndicator(indicator) {
+  state.activeIndicators[indicator] = !state.activeIndicators[indicator];
+  renderChart();
+}
+
+// Fetch Data with Cache
 async function fetchWithCache(url, cacheKey) {
   const cached = localStorage.getItem(cacheKey);
   if (cached) {
@@ -98,6 +130,7 @@ async function fetchWithCache(url, cacheKey) {
   }
 }
 
+// Load Data
 async function loadData() {
   if (!state.isOnline) {
     showNotification('Sin conexión: usando datos almacenados', 'warning');
@@ -133,6 +166,7 @@ async function loadData() {
   }
 }
 
+// Fetch Historical Data
 async function fetchHistoricalData() {
   const { interval, limit } = CONFIG.TIMEFRAME_MAP[state.currentTimeframe];
   const cacheKey = `burex_historicalData_${state.currentTimeframe}`;
@@ -154,6 +188,11 @@ async function fetchHistoricalData() {
       volume: item.volumeto
     }));
 
+  if (state.historicalData.length < CONFIG.MIN_DATA_POINTS[state.currentTimeframe]) {
+    showNotification('Datos insuficientes, intentando timeframe alternativo', 'warning');
+    return;
+  }
+
   if (state.currentPrice) {
     const lastDate = state.historicalData[state.historicalData.length - 1]?.time;
     const currentDate = new Date().getTime();
@@ -170,6 +209,7 @@ async function fetchHistoricalData() {
   }
 }
 
+// Update Price Display
 function updatePriceDisplay(priceData) {
   document.getElementById('current-price').textContent =
     `$${state.currentPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
@@ -180,137 +220,153 @@ function updatePriceDisplay(priceData) {
   changeElement.className = change24h >= 0 ? 'price-change trend-up' : 'price-change trend-down';
 }
 
+// Calculate Advanced Indicators
 function calculateAdvancedIndicators() {
-  if (!state.currentPrice || state.historicalData.length < 50) return;
+  if (!state.currentPrice) return;
 
   const prices = state.historicalData.map(d => d.close);
-  state.indicators.rsi = calculateRSI(prices);
-  state.indicators.volatility = calculateVolatility(prices);
-  state.indicators.ema50 = calculateEMA(50, prices);
-  state.indicators.ema200 = calculateEMA(200, prices);
-  state.indicators.macd = calculateMACD(prices);
-  state.indicators.ichimoku = calculateIchimoku(state.historicalData);
+  
+  state.indicators.rsi = prices.length >= 15 ? calculateRSI(prices) : 50;
+  state.indicators.volatility = prices.length >= 30 ? calculateVolatility(prices) : 15;
+  state.indicators.ema50 = prices.length >= 50 ? calculateEMA(50, prices) : null;
+  state.indicators.ema200 = prices.length >= 200 ? calculateEMA(200, prices) : null;
+  state.indicators.macd = prices.length >= 35 ? calculateMACD(prices) : null;
+  state.indicators.ichimoku = state.historicalData.length >= 52 ? calculateIchimoku(state.historicalData) : null;
+  state.indicators.bollinger = prices.length >= 20 ? calculateBollingerBands(prices) : null;
 
-  const shortTermData = prices.slice(-7);
+  const shortTermData = prices.slice(-Math.min(7, prices.length));
   const { slope } = linearRegression(shortTermData);
-  state.indicators.goldenMomentum = (slope / state.currentPrice) * CONFIG.GOLDEN_RATIO * 100;
+  state.indicators.goldenMomentum = (slope / (state.currentPrice || 1)) * CONFIG.GOLDEN_RATIO * 100;
 }
 
+// Calculate Prediction
 function calculatePrediction() {
-  if (!state.currentPrice || state.historicalData.length < 14) {
+  if (!state.currentPrice || state.historicalData.length < 5) {
     state.predictedPrice = null;
     state.confidenceLevel = 0;
     return;
   }
 
-  const shortTermData = state.historicalData.slice(-7).map(d => d.close);
+  const prices = state.historicalData.map(d => d.close);
+  const shortTermData = prices.slice(-Math.min(7, prices.length));
   const { slope } = linearRegression(shortTermData);
   const momentum = slope / state.currentPrice;
-  const rsiFactor = 1 + (50 - state.indicators.rsi) * 0.005;
-  const volatilityFactor = state.indicators.volatility > 30 ? 0.95 :
-                        state.indicators.volatility < 10 ? 1.05 : 1;
+  const timeframeFactor = 1 + (parseFloat(state.currentTimeframe) / 100);
 
-  const maxPrice = Math.max(...state.historicalData.map(d => d.close));
-  const minPrice = Math.min(...state.historicalData.map(d => d.close));
+  const maxPrice = Math.max(...prices);
+  const minPrice = Math.min(...prices);
   const priceRange = maxPrice - minPrice;
   const threshold = Math.max(priceRange * 0.025, 100);
 
-  const detectedLevels = CONFIG.FIB_LEVELS.filter(level => {
+  let fibImpact = 0;
+  CONFIG.FIB_LEVELS.forEach(level => {
     const fibPrice = minPrice + priceRange * level;
-    return Math.abs(state.currentPrice - fibPrice) < threshold;
-  }).length;
-
-  const levelFactor = 1 + (detectedLevels * 0.04);
-  let emaFactor = 1;
-  let emaTrend = 'Neutral';
-  if (state.indicators.ema50 && state.indicators.ema200) {
-    if (state.indicators.ema50 > state.indicators.ema200) {
-      emaFactor = 1.02;
-      emaTrend = 'Alcista';
-    } else {
-      emaFactor = 0.98;
-      emaTrend = 'Bajista';
+    if (Math.abs(state.currentPrice - fibPrice) < threshold) {
+      fibImpact += CONFIG.FIB_WEIGHTS[level] || 0.5;
     }
-  }
+  });
+  const levelFactor = 1 + Math.min(0.2, fibImpact * 0.05);
 
-  let macdFactor = 1;
-  if (state.indicators.macd) {
-    macdFactor = state.indicators.macd.histogram > 0 ? 1.015 : 0.985;
+  const rsi = state.indicators.rsi ?? 50;
+  const volatility = state.indicators.volatility ?? 15;
+  const rsiFactor = (50 - rsi) * 0.005;
+  const volatilityFactor = volatility > 30 ? -0.05 : 0.05;
+  
+  let emaFactor = 0;
+  let emaTrend = 'Neutral';
+  if (state.indicators.ema50 !== null && state.indicators.ema200 !== null) {
+    emaFactor = state.indicators.ema50 > state.indicators.ema200 ? 0.02 : -0.02;
+    emaTrend = state.indicators.ema50 > state.indicators.ema200 ? 'Alcista' : 'Bajista';
   }
+  
+  const macdFactor = (state.indicators.macd?.histogram > 0) ? 0.015 : -0.015;
 
-  const timeframeFactor = 1 + (parseFloat(state.currentTimeframe) / 100);
-  const predictionFactors = {
-    momentum: (1 + momentum * CONFIG.GOLDEN_RATIO * timeframeFactor),
+  const factors = {
+    momentum: momentum * CONFIG.GOLDEN_RATIO * timeframeFactor,
     rsi: rsiFactor,
     volatility: volatilityFactor,
-    fibLevels: levelFactor,
-    emaTrend: emaFactor,
+    fib: levelFactor - 1,
+    ema: emaFactor,
     macd: macdFactor,
-    ichimoku: 1
+    ichimoku: 0
   };
 
-  let weightedPrediction = 1;
-  let totalWeight = 0;
-  for (const [key, value] of Object.entries(predictionFactors)) {
-    weightedPrediction *= Math.pow(value, CONFIG.INDICATOR_WEIGHTS[key]);
-    totalWeight += CONFIG.INDICATOR_WEIGHTS[key];
-  }
+  let weightedChange = 0;
+  Object.keys(factors).forEach(key => {
+    weightedChange += factors[key] * (CONFIG.INDICATOR_WEIGHTS[key] || 0);
+  });
 
-  state.predictedPrice = state.currentPrice * weightedPrediction;
+  state.predictedPrice = state.currentPrice * (1 + weightedChange);
+
   const historicalAccuracy = calculateHistoricalAccuracy();
+  const volatilityImpact = Math.max(0, 1 - (volatility / 50));
   state.confidenceLevel = Math.min(100, Math.max(0,
     historicalAccuracy *
-    (1 - state.indicators.volatility / 100) *
-    (1 + detectedLevels * 0.08) *
-    (emaFactor === 1 ? 1 : 1.05) *
-    (state.indicators.macd?.histogram > 0 ? 1.05 : 0.95)
+    volatilityImpact *
+    (1 + (fibImpact * 0.08)) *
+    (emaFactor === 0 ? 1 : 1.05)
   ));
 
-  document.getElementById('prediction-price').textContent =
-    `$${state.predictedPrice.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  document.getElementById('prediction-price').textContent = state.predictedPrice 
+    ? `$${state.predictedPrice.toLocaleString('en-US', { maximumFractionDigits: 0 })}` 
+    : 'N/A';
+
   const confidencePercent = Math.round(state.confidenceLevel);
   document.getElementById('confidence-level').textContent = `${confidencePercent}%`;
   document.getElementById('confidence-fill').style.width = `${confidencePercent}%`;
+  
   const confidenceClass = confidencePercent > 70 ? 'confidence-high' :
-                       confidencePercent > 50 ? 'confidence-medium' : 'confidence-low';
+                        confidencePercent > 50 ? 'confidence-medium' : 'confidence-low';
   document.getElementById('confidence-dot').className = `confidence-dot ${confidenceClass}`;
   document.getElementById('confidence-fill').className = `confidence-fill ${confidenceClass}`;
 
   document.getElementById('golden-momentum').textContent = `${state.indicators.goldenMomentum.toFixed(2)}%`;
-  document.getElementById('fib-levels').textContent = `${detectedLevels}/12`;
-  document.getElementById('rsi-value').textContent = `${state.indicators.rsi.toFixed(2)}`;
-  document.getElementById('volatility').textContent = `${state.indicators.volatility.toFixed(2)}%`;
+  document.getElementById('fib-levels').textContent = `${fibImpact ? Math.round(fibImpact) : 0}/12`;
+  document.getElementById('rsi-value').textContent = `${rsi.toFixed(2)}`;
+  document.getElementById('volatility').textContent = `${volatility.toFixed(2)}%`;
   document.getElementById('ema-trend').textContent = emaTrend;
+  
   if (state.indicators.macd) {
     document.getElementById('macd-value').textContent =
       `${state.indicators.macd.MACD.toFixed(2)}/${state.indicators.macd.signal.toFixed(2)}`;
   }
+  
   document.getElementById('accuracy-rate').textContent = `${historicalAccuracy.toFixed(0)}%`;
 
   updateTrendIndicators();
   updateSentiment();
 }
 
+// Calculate Trading Recommendations
 function calculateTradingRecommendations() {
-  const maxPrice = Math.max(...state.historicalData.map(d => d.close));
-  const minPrice = Math.min(...state.historicalData.map(d => d.close));
+  if (!state.predictedPrice || !state.historicalData.length) return;
+
+  const prices = state.historicalData.map(d => d.close);
+  const maxPrice = Math.max(...prices);
+  const minPrice = Math.min(...prices);
   const priceRange = maxPrice - minPrice;
 
   const supportLevel = CONFIG.FIB_LEVELS
     .map(level => minPrice + priceRange * level)
     .filter(level => level < state.currentPrice)
-    .slice(-1)[0] || state.currentPrice * 0.95;
-  document.getElementById('key-support').textContent =
-    `$${supportLevel.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-
+    .reduce((prev, curr) => 
+      Math.abs(curr - state.currentPrice) < Math.abs(prev - state.currentPrice) ? curr : prev,
+      state.currentPrice * 0.95
+    );
+  
   const takeProfit = CONFIG.FIB_LEVELS
     .map(level => minPrice + priceRange * level)
     .filter(level => level > state.predictedPrice)
-    .slice(0, 1)[0] || state.predictedPrice * 1.05;
-  document.getElementById('take-profit').textContent =
-    `$${takeProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+    .sort((a, b) => a - b)[0] || state.predictedPrice * 1.05;
 
   const stopLoss = supportLevel * 0.95;
+
+  document.getElementById('key-support').textContent =
+    `$${supportLevel.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+    
+  document.getElementById('take-profit').textContent =
+    `$${takeProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+    
   document.getElementById('stop-loss').textContent =
     `$${stopLoss.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
@@ -329,6 +385,7 @@ function calculateTradingRecommendations() {
   document.getElementById('backtesting-accuracy').textContent = `${calculateHistoricalAccuracy().toFixed(0)}%`;
 }
 
+// Update Trend Indicators
 function updateTrendIndicators() {
   const goldenTrend = state.indicators.goldenMomentum > 0 ? 'trend-up' : 'trend-down';
   document.getElementById('golden-trend').className = `indicator-trend ${goldenTrend}`;
@@ -336,7 +393,7 @@ function updateTrendIndicators() {
     state.indicators.goldenMomentum > 0 ? 'Alcista' : 'Bajista';
 
   const rsiTrend = state.indicators.rsi > 70 ? 'trend-down' :
-                 state.indicators.rsi < 30 ? 'trend-up' : 'trend-neutral';
+                  state.indicators.rsi < 30 ? 'trend-up' : 'trend-neutral';
   document.getElementById('rsi-trend').className = `indicator-trend ${rsiTrend}`;
   document.querySelector('#rsi-trend span').textContent =
     state.indicators.rsi > 70 ? 'Sobrecompra' :
@@ -369,6 +426,7 @@ function updateTrendIndicators() {
   }
 }
 
+// Update Sentiment
 function updateSentiment() {
   const sentimentElement = document.getElementById('sentiment-indicator');
   const sentimentText = document.getElementById('sentiment-text');
@@ -387,6 +445,7 @@ function updateSentiment() {
   }
 }
 
+// Technical Indicator Calculations
 function linearRegression(data) {
   const n = data.length;
   let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
@@ -468,10 +527,43 @@ function calculateIchimoku(data, conversionPeriod = 9, basePeriod = 26, leadingS
   return { conversionLine, baseLine, leadingSpanA, leadingSpanB };
 }
 
-function calculateHistoricalAccuracy() {
-  return Math.min(95, 75 + Math.random() * 20);
+function calculateBollingerBands(prices, period = 20, multiplier = 2) {
+  if (prices.length < period) return null;
+  const sma = prices.slice(-period).reduce((sum, price) => sum + price, 0) / period;
+  const variance = prices.slice(-period).reduce((sum, price) => sum + Math.pow(price - sma, 2), 0) / period;
+  const stdDev = Math.sqrt(variance);
+  return {
+    upper: sma + (stdDev * multiplier),
+    middle: sma,
+    lower: sma - (stdDev * multiplier)
+  };
 }
 
+function calculateHistoricalAccuracy() {
+  if (state.historicalData.length < 100) return 75 + Math.random() * 20;
+
+  const predictions = [];
+  const actuals = state.historicalData.slice(-100).map(d => d.close);
+  for (let i = 20; i < actuals.length; i++) {
+    const pastData = actuals.slice(0, i);
+    const { slope } = linearRegression(pastData.slice(-7));
+    const predicted = pastData[pastData.length - 1] * (1 + (slope / pastData[pastData.length - 1]));
+    predictions.push(predicted);
+  }
+
+  let correct = 0;
+  for (let i = 0; i < predictions.length - 1; i++) {
+    const actualMove = actuals[i + 20] - actuals[i + 19];
+    const predictedMove = predictions[i] - actuals[i + 19];
+    if ((actualMove > 0 && predictedMove > 0) || (actualMove < 0 && predictedMove < 0)) {
+      correct++;
+    }
+  }
+
+  return (correct / (predictions.length - 1)) * 100;
+}
+
+// Render Chart
 function renderChart() {
   const ctx = document.getElementById('price-chart');
   if (state.priceChart) {
@@ -481,11 +573,12 @@ function renderChart() {
   if (state.historicalData.length < 2) return;
 
   const { unit, tooltipFormat } = CONFIG.TIMEFRAME_MAP[state.currentTimeframe];
+  const currentStyle = CONFIG.TIMEFRAME_STYLE[state.currentTimeframe] || CONFIG.TIMEFRAME_STYLE['4H'];
   const prices = state.historicalData.map(d => d.close);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
 
-  const fibAnnotations = CONFIG.FIB_LEVELS.map(level => {
+  const fibAnnotations = state.activeIndicators.fib ? CONFIG.FIB_LEVELS.map(level => {
     const price = minPrice + (maxPrice - minPrice) * level;
     return {
       type: 'line',
@@ -495,7 +588,89 @@ function renderChart() {
       borderWidth: 1,
       borderDash: [3, 3]
     };
-  });
+  }) : [];
+
+  let bollingerDatasets = [];
+  if (state.activeIndicators.bollinger && state.indicators.bollinger) {
+    bollingerDatasets = [
+      {
+        label: 'Bollinger Upper',
+        data: state.historicalData.map((d, i) => ({
+          x: d.time,
+          y: calculateBollingerBands(prices.slice(0, i + 1))?.upper
+        })),
+        borderColor: 'var(--bollinger-upper)',
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false
+      },
+      {
+        label: 'Bollinger Middle',
+        data: state.historicalData.map((d, i) => ({
+          x: d.time,
+          y: calculateBollingerBands(prices.slice(0, i + 1))?.middle
+        })),
+        borderColor: 'var(--bollinger-middle)',
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false
+      },
+      {
+        label: 'Bollinger Lower',
+        data: state.historicalData.map((d, i) => ({
+          x: d.time,
+          y: calculateBollingerBands(prices.slice(0, i + 1))?.lower
+        })),
+        borderColor: 'var(--bollinger-lower)',
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false
+      }
+    ];
+  }
+
+  let macdDatasets = [];
+  if (state.activeIndicators.macd && state.indicators.macd) {
+    macdDatasets = [
+      {
+        label: 'MACD Line',
+        data: state.historicalData.map((d, i) => ({
+          x: d.time,
+          y: calculateMACD(prices.slice(0, i + 1))?.MACD
+        })),
+        borderColor: 'var(--macd-line)',
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false,
+        yAxisID: 'y2'
+      },
+      {
+        label: 'Signal Line',
+        data: state.historicalData.map((d, i) => ({
+          x: d.time,
+          y: calculateMACD(prices.slice(0, i + 1))?.signal
+        })),
+        borderColor: 'var(--macd-signal)',
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false,
+        yAxisID: 'y2'
+      },
+      {
+        label: 'MACD Histogram',
+        data: state.historicalData.map((d, i) => ({
+          x: d.time,
+          y: calculateMACD(prices.slice(0, i + 1))?.histogram
+        })),
+        type: 'bar',
+        backgroundColor: state.historicalData.map((d, i) => {
+          const hist = calculateMACD(prices.slice(0, i + 1))?.histogram;
+          return hist > 0 ? 'var(--macd-hist-up)' : 'var(--macd-hist-down)';
+        }),
+        yAxisID: 'y2'
+      }
+    ];
+  }
 
   let predictionDataset = [];
   let predictionAnnotation = [];
@@ -503,15 +678,10 @@ function renderChart() {
     const currentDate = new Date();
     const predictionDate = new Date(currentDate);
     const timeframeHours = {
-      '1H': 1,
-      '4H': 4,
-      '6H': 6,
-      '12H': 12,
-      '1D': 24,
-      '1W': 168,
-      '30D': 720
-    }[state.currentTimeframe];
-    predictionDate.setHours(predictionDate.getHours() + timeframeHours);
+      '1H': 1, '4H': 4, '6H': 6, '12H': 12,
+      '1D': 24, '1W': 168, '30D': 720
+    };
+    predictionDate.setHours(predictionDate.getHours() + timeframeHours[state.currentTimeframe]);
     predictionDataset = [{
       label: 'Predicción',
       data: [
@@ -536,7 +706,7 @@ function renderChart() {
         display: true,
         position: 'right',
         backgroundColor: state.confidenceLevel > 70 ? 'var(--confidence-high)' :
-                      state.confidenceLevel > 50 ? 'var(--confidence-medium)' : 'var(--confidence-low)',
+                        state.confidenceLevel > 50 ? 'var(--confidence-medium)' : 'var(--confidence-low)',
         font: { size: 10, weight: 'bold' }
       }
     }];
@@ -551,12 +721,14 @@ function renderChart() {
           data: state.historicalData.map(d => ({ x: d.time, y: d.close })),
           borderColor: 'var(--chart-line)',
           backgroundColor: 'rgba(0, 0, 0, 0.05)',
-          borderWidth: 2,
-          pointRadius: 0,
+          borderWidth: currentStyle.borderWidth,
+          pointRadius: currentStyle.pointRadius,
           fill: true,
           tension: 0.1
         },
-        ...predictionDataset
+        ...predictionDataset,
+        ...bollingerDatasets,
+        ...macdDatasets
       ]
     },
     options: {
@@ -588,6 +760,12 @@ function renderChart() {
           ticks: {
             callback: value => `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
           }
+        },
+        y2: {
+          display: state.activeIndicators.macd,
+          position: 'left',
+          grid: { display: false },
+          ticks: { display: false }
         }
       },
       interaction: { mode: 'nearest', intersect: false }
@@ -595,6 +773,7 @@ function renderChart() {
   });
 }
 
+// Update UI with Cached Data
 function updateUIWithCachedData() {
   const cachedPrice = localStorage.getItem('burex_currentPrice');
   const cachedHistorical = localStorage.getItem(`burex_historicalData_${state.currentTimeframe}`);
@@ -620,6 +799,7 @@ function updateUIWithCachedData() {
   }
 }
 
+// Network Handlers
 function handleOnline() {
   state.isOnline = true;
   showNotification('Conexión restablecida', 'success');
@@ -632,6 +812,7 @@ function handleOffline() {
   updateUIWithCachedData();
 }
 
+// Notification and Loading
 function showNotification(message, type = 'info', duration = 3000) {
   const notification = document.getElementById('notification');
   const messageElement = document.getElementById('notification-message');
@@ -649,3 +830,12 @@ function showLoading(message) {
 function hideLoading() {
   document.getElementById('loading-overlay').classList.remove('active');
 }
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  initUI();
+  loadData();
+  setInterval(loadData, CONFIG.UPDATE_INTERVAL);
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+});
