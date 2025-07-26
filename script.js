@@ -2,10 +2,12 @@
 const CONFIG = {
   API_KEY: '98e740d93d02809186f0c22f3f127ddbf5e672d49ae407cfa9891cb110bdca7b',
   API_URL: 'https://min-api.cryptocompare.com/data',
+  BINANCE_URL: 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',
   CACHE_TTL: 180000,
   RETRY_COUNT: 3,
   RETRY_DELAY: 1000,
   UPDATE_INTERVAL: 180000,
+  PRICE_UPDATE_INTERVAL: 3000, // 3 seconds for price update
   GOLDEN_RATIO: 1.618,
   FIB_LEVELS: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.272, 1.414, 1.618, 2, 2.618],
   TIMEFRAME_MAP: {
@@ -118,15 +120,51 @@ async function fetchWithCache(url, cacheKey) {
 
   for (let i = 0; i < CONFIG.RETRY_COUNT; i++) {
     try {
-      const response = await fetch(`${url}&api_key=${CONFIG.API_KEY}`);
+      const response = await fetch(
+        url.includes('binance') ? url : `${url}&api_key=${CONFIG.API_KEY}`
+      );
       if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
       const data = await response.json();
-      localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+      if (!url.includes('binance')) {
+        localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+      }
       return data;
     } catch (error) {
       if (i === CONFIG.RETRY_COUNT - 1) throw error;
       await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
     }
+  }
+}
+
+// Function to update only the price
+async function updateCurrentPrice() {
+  if (!state.isOnline) return;
+
+  try {
+    const binanceData = await fetchWithCache(CONFIG.BINANCE_URL, 'burex_binancePrice');
+    if (state.currentPrice !== parseFloat(binanceData.price)) {
+      state.currentPrice = parseFloat(binanceData.price);
+      updatePriceDisplay({ PRICE: state.currentPrice, CHANGEPCT24HOUR: null });
+
+      // Update the last point of the chart
+      if (state.historicalData.length > 0) {
+        const lastIndex = state.historicalData.length - 1;
+        state.historicalData[lastIndex] = {
+          ...state.historicalData[lastIndex],
+          close: state.currentPrice,
+          high: Math.max(state.historicalData[lastIndex].high, state.currentPrice),
+          low: Math.min(state.historicalData[lastIndex].low, state.currentPrice)
+        };
+
+        // Update chart if it exists
+        if (state.priceChart) {
+          state.priceChart.data.datasets[0].data[lastIndex].y = state.currentPrice;
+          state.priceChart.update('none');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error actualizando precio:', error);
   }
 }
 
@@ -225,7 +263,7 @@ function calculateAdvancedIndicators() {
   if (!state.currentPrice) return;
 
   const prices = state.historicalData.map(d => d.close);
-  
+
   state.indicators.rsi = prices.length >= 15 ? calculateRSI(prices) : 50;
   state.indicators.volatility = prices.length >= 30 ? calculateVolatility(prices) : 15;
   state.indicators.ema50 = prices.length >= 50 ? calculateEMA(50, prices) : null;
@@ -271,14 +309,14 @@ function calculatePrediction() {
   const volatility = state.indicators.volatility ?? 15;
   const rsiFactor = (50 - rsi) * 0.005;
   const volatilityFactor = volatility > 30 ? -0.05 : 0.05;
-  
+
   let emaFactor = 0;
   let emaTrend = 'Neutral';
   if (state.indicators.ema50 !== null && state.indicators.ema200 !== null) {
     emaFactor = state.indicators.ema50 > state.indicators.ema200 ? 0.02 : -0.02;
     emaTrend = state.indicators.ema50 > state.indicators.ema200 ? 'Alcista' : 'Bajista';
   }
-  
+
   const macdFactor = (state.indicators.macd?.histogram > 0) ? 0.015 : -0.015;
 
   const factors = {
@@ -307,14 +345,14 @@ function calculatePrediction() {
     (emaFactor === 0 ? 1 : 1.05)
   ));
 
-  document.getElementById('prediction-price').textContent = state.predictedPrice 
-    ? `$${state.predictedPrice.toLocaleString('en-US', { maximumFractionDigits: 0 })}` 
+  document.getElementById('prediction-price').textContent = state.predictedPrice
+    ? `$${state.predictedPrice.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
     : 'N/A';
 
   const confidencePercent = Math.round(state.confidenceLevel);
   document.getElementById('confidence-level').textContent = `${confidencePercent}%`;
   document.getElementById('confidence-fill').style.width = `${confidencePercent}%`;
-  
+
   const confidenceClass = confidencePercent > 70 ? 'confidence-high' :
                         confidencePercent > 50 ? 'confidence-medium' : 'confidence-low';
   document.getElementById('confidence-dot').className = `confidence-dot ${confidenceClass}`;
@@ -325,12 +363,12 @@ function calculatePrediction() {
   document.getElementById('rsi-value').textContent = `${rsi.toFixed(2)}`;
   document.getElementById('volatility').textContent = `${volatility.toFixed(2)}%`;
   document.getElementById('ema-trend').textContent = emaTrend;
-  
+
   if (state.indicators.macd) {
     document.getElementById('macd-value').textContent =
       `${state.indicators.macd.MACD.toFixed(2)}/${state.indicators.macd.signal.toFixed(2)}`;
   }
-  
+
   document.getElementById('accuracy-rate').textContent = `${historicalAccuracy.toFixed(0)}%`;
 
   updateTrendIndicators();
@@ -349,11 +387,11 @@ function calculateTradingRecommendations() {
   const supportLevel = CONFIG.FIB_LEVELS
     .map(level => minPrice + priceRange * level)
     .filter(level => level < state.currentPrice)
-    .reduce((prev, curr) => 
+    .reduce((prev, curr) =>
       Math.abs(curr - state.currentPrice) < Math.abs(prev - state.currentPrice) ? curr : prev,
       state.currentPrice * 0.95
     );
-  
+
   const takeProfit = CONFIG.FIB_LEVELS
     .map(level => minPrice + priceRange * level)
     .filter(level => level > state.predictedPrice)
@@ -363,10 +401,10 @@ function calculateTradingRecommendations() {
 
   document.getElementById('key-support').textContent =
     `$${supportLevel.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-    
+
   document.getElementById('take-profit').textContent =
     `$${takeProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-    
+
   document.getElementById('stop-loss').textContent =
     `$${stopLoss.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
@@ -834,7 +872,10 @@ function hideLoading() {
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   initUI();
-  loadData();
+  updateCurrentPrice().then(() => {
+    loadData();
+  });
+  setInterval(updateCurrentPrice, CONFIG.PRICE_UPDATE_INTERVAL);
   setInterval(loadData, CONFIG.UPDATE_INTERVAL);
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
